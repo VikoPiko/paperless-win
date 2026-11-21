@@ -3,9 +3,11 @@
 **Runs on:** Linux is fine for most of this; final verification on Windows. **Branch:** `winport/P03-paths`
 
 ## Goal
+
 Paths stored in the DB and in export manifests are always POSIX (`a/b/c.pdf`) on every OS. Generated storage paths are legal on NTFS. Existing Windows databases with backslashes get repaired.
 
 ## Context
+
 - `src/documents/signals/handlers.py` (~L490–560): `instance.filename = str(new_filename)` — produces `\` on Windows.
 - `src/documents/consumer.py` (~L700–745), `src/documents/tasks.py` (~L430): where `filename` and `archive_filename` get set.
 - `src/documents/file_handling.py`: `generate_unique_filename`, `generate_filename`, `format_filename` (`.strip(os.sep)`), `delete_empty_directories`, the `is_relative_to` safety checks.
@@ -15,6 +17,7 @@ Paths stored in the DB and in export manifests are always POSIX (`a/b/c.pdf`) on
 - `FilePathField` on `archive_filename`.
 
 ## Steps
+
 1. Write failing tests first. Simulate Windows path semantics with `PureWindowsPath`-based helpers where possible, so the tests run on Linux:
    - a template `{{ created_year }}/{{ correspondent }}/{{ title }}` stores `2024/ACME/Invoice.pdf`, never with `\`;
    - leading and trailing `/` are stripped on both OSes;
@@ -35,9 +38,11 @@ Paths stored in the DB and in export manifests are always POSIX (`a/b/c.pdf`) on
 6. Run the full test modules for file handling, consumer, exporter and importer on Linux, then on Windows.
 
 ## Acceptance criteria
+
 - [ ] The new tests pass on both OSes. Existing upstream file-handling tests still pass on Linux.
 - [ ] Round trip: export on Windows, import on Linux (or under the Linux CI job with a Windows-produced fixture), and the reverse.
 - [ ] `smoke.ps1` passes, with a storage path template configured that uses nested folders.
 
 ## Findings
+
 _(fill in)_

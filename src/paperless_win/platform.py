@@ -146,19 +146,24 @@ def bin_dirs() -> list[Path]:
 
 
 def _candidate_names(name: str) -> tuple[str, ...]:
-    if name in _WINDOWS_NAMES:
-        return _WINDOWS_NAMES[name]
-    if Path(name).suffix:
-        return (name,)
-    return (f"{name}.exe", name)
+    """Names to try via ``shutil.which``: the bare name first (which adds PATHEXT)."""
+    return (name, *_WINDOWS_NAMES.get(name, ()))
+
+
+def _exe_variants(candidate: str) -> tuple[str, ...]:
+    return (candidate,) if Path(candidate).suffix else (f"{candidate}.exe", candidate)
 
 
 def find_binary(name: str) -> str | None:
     """Locate a binary. On Linux this is exactly ``shutil.which``.
 
-    On Windows, in order: ``PAPERLESS_BIN_<NAME>`` (authoritative override), the bin
-    directories (``PAPERLESS_BIN_DIR``, ``<app>/bin``, ``<app>/.tools``), then ``PATH``.
-    Windows names are mapped (``gs`` becomes ``gswin64c.exe``) and ``.exe`` is added.
+    On Windows, in order: ``PAPERLESS_BIN_<NAME>`` (authoritative override), ``PATH``
+    (``bootstrap.apply()`` has normally put the bin directories there already), then any
+    bin directory not yet on ``PATH`` (``PAPERLESS_BIN_DIR``, ``<app>/bin``,
+    ``<app>/.tools``). Windows names are mapped (``gs`` becomes ``gswin64c.exe``) and
+    ``.exe`` is added.
+
+    Going through ``shutil.which`` first keeps upstream's tests, which mock it, valid.
     """
     if not IS_WINDOWS:
         return shutil.which(name)
@@ -171,14 +176,18 @@ def find_binary(name: str) -> str | None:
         return shutil.which(override)
 
     names = _candidate_names(name)
-    for directory in bin_dirs():
-        for candidate in names:
-            path = directory / candidate
-            if path.is_file():
-                return str(path)
-
     for candidate in names:
         found = shutil.which(candidate)
         if found:
             return found
+
+    on_path = {p.lower() for p in os.environ.get("PATH", "").split(os.pathsep) if p}
+    for directory in bin_dirs():
+        if str(directory).lower() in on_path:
+            continue
+        for candidate in names:
+            for variant in _exe_variants(candidate):
+                path = directory / variant
+                if path.is_file():
+                    return str(path)
     return None

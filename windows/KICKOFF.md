@@ -1,6 +1,7 @@
 # How to drive this with Claude Code
 
 ## One-time setup (you)
+
 1. On GitHub, fork `paperless-ngx/paperless-ngx` and rename the fork to `paperless-win`.
 2. On your **Windows** machine, install Git for Windows, PowerShell 7 and Claude Code. Then:
    ```powershell
@@ -12,6 +13,7 @@
 4. Start `claude` in the repo root.
 
 ## Prompt per phase
+
 Paste this, changing only the task file name:
 
 > Read CLAUDE.md and windows/PLAN.md, then do windows/tasks/00-fork-setup.md.
@@ -23,6 +25,7 @@ Paste this, changing only the task file name:
 Suggested order: 00 → 01 → (review P1 findings together before continuing) → 02 → 03 → 04 → 05 → 06 → 07 → 09 → 10 → 11 → 12 → 08.
 
 ## Tips
+
 - Use plan mode (Shift+Tab) for P1, P3 and P6. These are the phases where the design is most likely to need adjusting once Claude Code has read the code.
 - Start a fresh session per phase. CLAUDE.md, PLAN.md and the Findings sections carry the context between sessions.
 - After P1, re-read its Findings yourself. If Garnet or Granian didn't work, the decisions change, and every later task should be adjusted before you continue.

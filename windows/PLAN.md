@@ -19,16 +19,16 @@ fork doesn't touch that path.
 
 ## Accepted trade-offs
 
-| Area | Trade-off |
-|---|---|
-| `unpaper` cleaning | Unavailable on Windows unless the user supplies a binary; `OCR_CLEAN` options show as unavailable. |
-| `jbig2enc` | Not bundled; OCRmyPDF falls back to other optimizers (slightly larger PDFs). |
-| Office docs | No Gotenberg. Tika (Java jar) + **local LibreOffice** conversion, optional, both user-installed. |
-| Task time limit | Enforced by our supervisor watchdog (kill process tree), not by Celery. |
-| Redis | Garnet bundled; we don't support an external Redis on Windows in v1 (it would work, but it's untested). |
-| Local AI embeddings | Optional add-on, large download. |
-| Network consume folders | Polling mode recommended/defaulted for UNC paths. |
-| Multi-node / scaling | Single machine only. |
+| Area                    | Trade-off                                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------------------------- |
+| `unpaper` cleaning      | Unavailable on Windows unless the user supplies a binary; `OCR_CLEAN` options show as unavailable.      |
+| `jbig2enc`              | Not bundled; OCRmyPDF falls back to other optimizers (slightly larger PDFs).                            |
+| Office docs             | No Gotenberg. Tika (Java jar) + **local LibreOffice** conversion, optional, both user-installed.        |
+| Task time limit         | Enforced by our supervisor watchdog (kill process tree), not by Celery.                                 |
+| Redis                   | Garnet bundled; we don't support an external Redis on Windows in v1 (it would work, but it's untested). |
+| Local AI embeddings     | Optional add-on, large download.                                                                        |
+| Network consume folders | Polling mode recommended/defaulted for UNC paths.                                                       |
+| Multi-node / scaling    | Single machine only.                                                                                    |
 
 ## Architecture (Windows)
 
@@ -51,22 +51,22 @@ Windows Service "paperless-win"  (WinSW → paperless-ctl run)
 Each phase is a task file in `windows/tasks/` written for Claude Code. Do them in order;
 P7/P8 can run in parallel with P5/P6 once P4 is done.
 
-| # | Task file | Outcome | Needs Windows? | Status |
-|---|---|---|---|---|
-| P0 | `00-fork-setup.md` | Fork, remotes, fork docs, patch-checker, Windows CI skeleton | No | ☑ done (PR open) |
-| P1 | `01-spike.md` | Manual Windows run end-to-end; findings decide go/no-go details | **Yes** | ◐ done, Findings awaiting review |
-| P2 | `02-platform-layer.md` | `paperless_win.platform`: binary lookup, default paths, config search | Yes | ☐ |
-| P3 | `03-paths-filenames.md` | POSIX-stored paths, Windows-safe filenames, data migration | Partly | ☐ |
-| P4 | `04-external-tools.md` | pikepdf instead of qpdf/pdfinfo CLIs, poppler/libmagic wiring | Yes | ☐ |
-| P5 | `05-consumer-robustness.md` | File-lock retries, stable-file detection, script dispatch, UNC polling | Yes | ☐ |
-| P6 | `06-runtime-supervisor.md` | `paperless-ctl` (init/run/check), supervisor, solo workers, watchdog | Yes | ☐ |
-| P7 | `07-ai-optional.md` | `ai-local` extra; base works without torch | No | ☐ |
-| P8 | `08-office-docs.md` | Local LibreOffice converter as Gotenberg alternative | Yes | ☐ |
-| P9 | `09-windows-service.md` | WinSW service, accounts, ACLs, logs | Yes | ☐ |
-| P10 | `10-packaging-installer.md` | Reproducible build script + Inno Setup installer + upgrade | Yes | ☐ |
-| P11 | `11-ci-release.md` | Windows test job, smoke job, release workflow | No (CI) | ☐ |
-| P12 | `12-docs-branding.md` | README, user docs, disclaimers, THIRD_PARTY | No | ☐ |
-| — | `../UPSTREAM-SYNC.md` | Repeatable procedure for each upstream release | Partly | ongoing |
+| #   | Task file                   | Outcome                                                                | Needs Windows? | Status                           |
+| --- | --------------------------- | ---------------------------------------------------------------------- | -------------- | -------------------------------- |
+| P0  | `00-fork-setup.md`          | Fork, remotes, fork docs, patch-checker, Windows CI skeleton           | No             | ☑ done (PR open)                 |
+| P1  | `01-spike.md`               | Manual Windows run end-to-end; findings decide go/no-go details        | **Yes**        | ◐ done, Findings awaiting review |
+| P2  | `02-platform-layer.md`      | `paperless_win.platform`: binary lookup, default paths, config search  | Yes            | ◐ code done, Linux CI pending    |
+| P3  | `03-paths-filenames.md`     | POSIX-stored paths, Windows-safe filenames, data migration             | Partly         | ☐                                |
+| P4  | `04-external-tools.md`      | pikepdf instead of qpdf/pdfinfo CLIs, poppler/libmagic wiring          | Yes            | ☐                                |
+| P5  | `05-consumer-robustness.md` | File-lock retries, stable-file detection, script dispatch, UNC polling | Yes            | ☐                                |
+| P6  | `06-runtime-supervisor.md`  | `paperless-ctl` (init/run/check), supervisor, solo workers, watchdog   | Yes            | ☐                                |
+| P7  | `07-ai-optional.md`         | `ai-local` extra; base works without torch                             | No             | ☐                                |
+| P8  | `08-office-docs.md`         | Local LibreOffice converter as Gotenberg alternative                   | Yes            | ☐                                |
+| P9  | `09-windows-service.md`     | WinSW service, accounts, ACLs, logs                                    | Yes            | ☐                                |
+| P10 | `10-packaging-installer.md` | Reproducible build script + Inno Setup installer + upgrade             | Yes            | ☐                                |
+| P11 | `11-ci-release.md`          | Windows test job, smoke job, release workflow                          | No (CI)        | ☐                                |
+| P12 | `12-docs-branding.md`       | README, user docs, disclaimers, THIRD_PARTY                            | No             | ☐                                |
+| —   | `../UPSTREAM-SYNC.md`       | Repeatable procedure for each upstream release                         | Partly         | ongoing                          |
 
 **Definition of done for v0.1.0 (first public release):** P0–P6, P9–P12 complete;
 `smoke.ps1` passes on a clean Windows 11 VM from the installer; Linux CI green;
@@ -92,12 +92,12 @@ P7/P8 can run in parallel with P5/P6 once P4 is done.
 
 ## Risk register
 
-| Risk | Likelihood | Mitigation |
-|---|---|---|
-| Garnet lacks a Redis feature used by kombu / channels_redis / cachalot | Medium | P1 verifies explicitly; enable Garnet Lua if needed; fallback: Memurai (check redistribution licence) or a DB-backed broker later |
-| Celery instability on Windows | Medium | Solo pool, process-per-worker, recycling, watchdog; soak test in P6 |
-| File locking (`PermissionError`) during consume/move | High | Retry/backoff helper; stable-file check; Defender exclusion guidance |
-| Granian Windows quirks (workers, signals) | Low-Med | P1 check; uvicorn fallback |
-| Upstream churn causing merge pain | High (ongoing) | Thin-diff rules, `PATCHES.md`, tag-based sync, CI on both OSes |
-| Bundled-binary licences (Ghostscript AGPL, Poppler GPL) | Low | GPL-3 project; ship licences + source links in `THIRD_PARTY.md` |
-| Installer size | Medium | AI add-on optional; Tesseract languages selectable |
+| Risk                                                                   | Likelihood     | Mitigation                                                                                                                        |
+| ---------------------------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Garnet lacks a Redis feature used by kombu / channels_redis / cachalot | Medium         | P1 verifies explicitly; enable Garnet Lua if needed; fallback: Memurai (check redistribution licence) or a DB-backed broker later |
+| Celery instability on Windows                                          | Medium         | Solo pool, process-per-worker, recycling, watchdog; soak test in P6                                                               |
+| File locking (`PermissionError`) during consume/move                   | High           | Retry/backoff helper; stable-file check; Defender exclusion guidance                                                              |
+| Granian Windows quirks (workers, signals)                              | Low-Med        | P1 check; uvicorn fallback                                                                                                        |
+| Upstream churn causing merge pain                                      | High (ongoing) | Thin-diff rules, `PATCHES.md`, tag-based sync, CI on both OSes                                                                    |
+| Bundled-binary licences (Ghostscript AGPL, Poppler GPL)                | Low            | GPL-3 project; ship licences + source links in `THIRD_PARTY.md`                                                                   |
+| Installer size                                                         | Medium         | AI add-on optional; Tesseract languages selectable                                                                                |

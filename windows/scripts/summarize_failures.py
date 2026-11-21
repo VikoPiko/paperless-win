@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-# ruff: noqa: T201
+# ruff: noqa: INP001, T201
 """Summarise a pytest JUnit XML report: failures grouped by exception type and module.
 
 Usage:

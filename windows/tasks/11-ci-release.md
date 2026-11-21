@@ -3,9 +3,11 @@
 **Runs on:** GitHub Actions. **Branch:** `winport/P11-ci`
 
 ## Goal
+
 Every PR to the fork is tested on Linux (proving the fork didn't break upstream behaviour) and on Windows (proving the port works). Tags produce an installer release.
 
 ## Workflows (all fork-owned, `winport-*.yml`)
+
 1. `winport-ci.yml` (PRs and pushes to `main`):
    - `patches`: `check_patches.py`
    - `linux-tests`: same command as upstream's backend CI, with `--extra ai-local`
@@ -19,8 +21,10 @@ Every PR to the fork is tested on Linux (proving the fork didn't break upstream 
 3. `winport-upstream-watch.yml` (weekly cron): checks for a new upstream release tag and opens an **issue on the fork** titled "Sync upstream vX.Y.Z" that links `UPSTREAM-SYNC.md`. It never touches upstream.
 
 ## Acceptance criteria
+
 - [ ] A PR that breaks a Windows-only path fails CI; a PR that breaks Linux fails CI.
 - [ ] Tagging `v3.5.1-win.1` produces a release whose installer passes the install-test job.
 
 ## Findings
+
 _(fill in)_

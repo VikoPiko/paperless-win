@@ -150,3 +150,15 @@ def test_bin_dirs_skips_download_and_tool_noise(fake_windows: Path) -> None:
 
 def test_bin_dirs_is_empty_without_roots(fake_windows: Path) -> None:
     assert platform.bin_dirs() == []
+
+
+def test_find_binary_trusts_path_when_dirs_already_on_it(
+    fake_windows: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Once apply() has put the bin dirs on PATH, a (mocked) which() miss is final."""
+    tools = fake_windows / "bin" / "tesseract"
+    touch(tools / "tesseract.exe")
+    monkeypatch.setenv("PATH", str(tools))
+    monkeypatch.setattr(shutil, "which", lambda name, **kwargs: None)
+    assert platform.find_binary("tesseract") is None
