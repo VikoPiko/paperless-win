@@ -30,8 +30,8 @@ The fork exists with the right remotes and branch model. The winport scaffolding
 ## Acceptance criteria
 - [x] `git log --oneline -1 main~N` shows the upstream tag as the base. _(local `main` = `v3.5.1` = `35b043919 Bump version to 3.5.1`; not yet pushed)_
 - [x] `python windows/scripts/check_patches.py` passes (README row present). _(Plain `python`: `uv run` cannot sync on Windows yet, see Findings.)_
-- [ ] The `winport-ci` workflow passes on the fork. _(Blocked: branch not pushed, `gh` not authenticated.)_
-- [ ] No upstream workflow will push images or open issues or PRs. _(Blocked: needs `gh auth login` or the GitHub UI, and the user's OK for D7.)_
+- [x] The `winport-ci` workflow passes on the fork. _(Both jobs green on `winport/P00-fork-setup`: Patch inventory, Windows import smoke printing `3.5.1-win.0`.)_
+- [x] No upstream workflow will push images or open issues or PRs. _(Nine workflows disabled; see Findings. D7 still to be written, pending the user's OK.)_
 
 ## Out of scope
 Any functional change to paperless.
@@ -41,10 +41,14 @@ Any functional change to paperless.
 - Steps 1-5, 7 and 8 are complete: `upstream` remote and tags, plan files copied in, `src/paperless_win/` package, `check_patches.py`, `winport-ci.yml` skeleton, README notice.
 - `PATCHES.md` has two rows: `README.md` (notice) and `pyproject.toml` (adds `src/paperless_win/tests` to pytest `testpaths`, so the fork's tests are collected like the sibling packages). Ruff already picks up `src/` via `tool.ruff.src`.
 
-**Not done, needs the user:**
-- Step 2 (publish): `main` is local only. On the fork, `dev` is still the default branch. Push `main`, then set the default branch to `main` in Settings > Branches (GitHub UI).
-- Step 6: no upstream workflow has been disabled yet (`gh` is installed but not logged in; `gh auth login` is interactive). Candidates: `ci-docker.yml` (Docker Build), `ci-release.yml` (Release, tag-triggered, opens PRs), `cleanup-tags.yml`, `crowdin.yml`, `issue-bot.yml`, `pr-bot.yml`, `project-actions.yml`, `repo-maintenance.yml`, `translate-strings.yml`. `ci-docs.yml` also deploys to GitHub Pages on the default branch, so it will probably fail on the fork, but it is not on the task's list. D7 in `DECISIONS.md` is still unwritten, pending the user's OK.
-- Acceptance: the `winport-ci` run on the fork has not happened yet.
+**Done on GitHub (via `gh`, logged in as the fork owner):**
+- `main` (= `v3.5.1`) pushed; default branch switched from `dev` to `main` (by the user, via `gh repo edit`).
+- The fork's workflows only registered after the user clicked "enable" on the Actions tab (until then `gh api .../actions/workflows` returned 0). The user set the Actions policy to "local only" while the upstream workflows were disabled, then back to "all".
+- Disabled with `gh workflow disable`: `ci-docker`, `ci-release`, `issue-bot`, `pr-bot`, `project-actions`, `translate-strings`. Already `disabled_fork` (GitHub refuses to disable them again): `cleanup-tags`, `crowdin`, `repo-maintenance`, plus `codeql-analysis`.
+- Still active: `ci-backend`, `ci-frontend`, `ci-lint`, `ci-static-analysis`, `ci-docs`. `ci-docs` only deploys to Pages on a push to `main` that changes docs; the user has not yet decided whether to disable it.
+- The token needed the `workflow` scope (`gh auth refresh -h github.com -s workflow`) to push `winport-ci.yml`.
+
+**Still open:** D7 in `DECISIONS.md` (the list of disabled workflows) has not been written; it needs the user's OK. Decision pending on `ci-docs`.
 
 **Surprises:**
 1. **`uv sync` cannot work on Windows yet.** `[tool.uv] environments` in `pyproject.toml` lists only linux x86_64/aarch64 and macOS arm64, so `uv sync --dry-run` fails with "The current Python platform is not compatible with the lockfile's supported environments". Fixing it means editing `pyproject.toml` and re-locking, which belongs to P1/P2 (see the `pyproject.toml` hotspot in `PLAN.md`) and is a functional change, which is out of scope here. Deviation from step 7: the Windows CI job installs uv but skips `uv sync` and runs `uv run --no-project ... import paperless_win` with `PYTHONPATH=src`, with a TODO in the workflow. `uv run python windows/scripts/check_patches.py` has the same problem on Windows, so use plain `python`.

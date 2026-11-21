@@ -53,7 +53,7 @@ P7/P8 can run in parallel with P5/P6 once P4 is done.
 
 | # | Task file | Outcome | Needs Windows? | Status |
 |---|---|---|---|---|
-| P0 | `00-fork-setup.md` | Fork, remotes, fork docs, patch-checker, Windows CI skeleton | No | ◐ local work done; GitHub steps pending |
+| P0 | `00-fork-setup.md` | Fork, remotes, fork docs, patch-checker, Windows CI skeleton | No | ◐ done except D7 (awaiting OK) |
 | P1 | `01-spike.md` | Manual Windows run end-to-end; findings decide go/no-go details | **Yes** | ☐ |
 | P2 | `02-platform-layer.md` | `paperless_win.platform`: binary lookup, default paths, config search | Yes | ☐ |
 | P3 | `03-paths-filenames.md` | POSIX-stored paths, Windows-safe filenames, data migration | Partly | ☐ |
