@@ -27,3 +27,8 @@ Short entries. Newest at the bottom. Format: context → decision → consequenc
 ## D6 — Service wrapper: WinSW
 - **Decision:** WinSW (MIT, single exe + XML) wraps `paperless-ctl run`. No pywin32 service code.
 - **Consequences:** Supervisor must handle Ctrl-Break/stop signal from WinSW and shut down children cleanly.
+
+## D7 — Disable upstream automation that publishes or spams
+- **Context:** The fork inherits upstream workflows that publish Docker images, sync translations, run issue/PR bots or deploy upstream's docs site. None make sense for this fork, and some would act on the wrong repo.
+- **Decision:** Disable them with `gh workflow disable` (GitHub does not let a fork's owner edit this from the repo, and deleting the files would cause merge conflicts on every upstream sync). The workflow files stay untouched. Disabled manually: `ci-docker`, `ci-release`, `ci-docs`, `issue-bot`, `pr-bot`, `project-actions`, `translate-strings`. Already `disabled_fork` by GitHub (cannot run on forks): `cleanup-tags`, `crowdin`, `repo-maintenance`, `codeql-analysis`. Kept active: `ci-backend`, `ci-frontend`, `ci-lint`, `ci-static-analysis` (upstream's Linux test and lint suites, which support the "Linux must keep working" rule).
+- **Consequences:** After each upstream sync, check that new upstream workflows are not active (`gh workflow list --all`). The disabled state lives in GitHub settings, not in git. `ci-docs` can be re-enabled in P12 if we publish docs.
