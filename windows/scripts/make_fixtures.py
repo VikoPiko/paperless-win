@@ -44,7 +44,10 @@ def barcode_page(text: str = "PATCHT") -> Image.Image:
     import zxingcpp
 
     code = zxingcpp.write_barcode(
-        zxingcpp.BarcodeFormat.Code128, text, width=600, height=200
+        zxingcpp.BarcodeFormat.Code128,
+        text,
+        width=600,
+        height=200,
     )
     img = Image.new("L", (1240, 1754), 255)
     img.paste(Image.fromarray(np.array(code)).convert("L"), (320, 400))
