@@ -22,6 +22,19 @@ def fake_windows(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     for key in list(os.environ):
         if key.startswith("PAPERLESS_BIN_"):
             monkeypatch.delenv(key)
+    if sys.platform != "win32":
+        # Emulate PATHEXT so "tesseract" finds "tesseract.exe" when simulating Windows on
+        # Linux. Without this, shutil.which() can only find extension-less, executable files.
+        real_which = shutil.which
+
+        def which_with_pathext(cmd, mode=os.F_OK | os.X_OK, path=None):
+            return real_which(cmd, mode=os.F_OK, path=path) or real_which(
+                f"{cmd}.exe",
+                mode=os.F_OK,
+                path=path,
+            )
+
+        monkeypatch.setattr(shutil, "which", which_with_pathext)
     return app
 
 
