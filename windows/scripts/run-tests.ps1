@@ -8,10 +8,12 @@
   paperless_win pytest plugin (skips from windows\skipped_tests.toml) and runs pytest
   from src\ in a clean environment (no spike or PAPERLESS_* variables leak in).
   Extra arguments are passed to pytest, e.g.  -k consumer  or  documents/tests/test_api_status.py
+  (positional arguments never bind to -Junit; pass it by name: -Junit C:\\out.xml).
 
   Writes JUnit XML to .spike\junit-windows.xml (override with -Junit). Summarise it with
   windows\scripts\summarize_failures.py.
 #>
+[CmdletBinding(PositionalBinding = $false)]
 param(
     [string]$Junit = '',
     [Parameter(ValueFromRemainingArguments = $true)] [string[]]$PytestArgs
