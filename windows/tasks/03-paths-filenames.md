@@ -39,7 +39,7 @@ Paths stored in the DB and in export manifests are always POSIX (`a/b/c.pdf`) on
 
 ## Acceptance criteria
 
-- [x] The new tests pass on both OSes. Existing upstream file-handling tests still pass on Linux. _(Windows: 4,143 passed, 99 skipped, 0 failed with the skip list; the 2 new `paperless_win` test files that need Django ran on Windows and are exercised by the fork's Linux CI; Linux CI result is recorded in the PR.)_
+- [x] The new tests pass on both OSes. Existing upstream file-handling tests still pass on Linux. _(Windows: 4,143 passed, 99 skipped, 0 failed with the skip list; the new Django-backed `paperless_win` tests also ran in the fork's Linux CI. Fork CI on `1b4fa58`: Backend Tests green on Python 3.11 to 3.14, Lint, Static Analysis, Frontend Tests and `winport CI` all green.)_
 - [~] Round trip: export on Windows, import on Linux, and the reverse. _(Partly: the exporter already wrote POSIX `__exported_*` names; `test_export_manifest_contains_only_posix_paths` proves the manifest (including `fields.filename`) has no backslashes on either OS. I did **not** run an actual Windows-export to Linux-import, and made no importer change, see Findings.)_
 - [x] `smoke.ps1` passes, with a storage path template configured that uses nested folders. _(`PAPERLESS_FILENAME_FORMAT={created_year}/{correspondent}/{title}`: DB row `2026/none/winport-smoke-….pdf`, file in `originals\2026\none\`, smoke exit 0.)_
 
@@ -68,10 +68,12 @@ Paths stored in the DB and in export manifests are always POSIX (`a/b/c.pdf`) on
 **Not done / deviations:**
 
 - **No importer change.** The exporter already writes `/` everywhere (`as_posix`), the importer joins those strings with `source /`, which Windows accepts, and the stored `filename` fields are POSIX after this task, so a Windows export imports on Linux and vice versa without it. A manifest with backslashes could only come from an unreleased pre-P3 Windows install, which the migration repairs before export. If you want a belt-and-braces `\` to `/` pass on import anyway, it is about 15 lines plus a fixture.
-- The actual Windows-export-to-Linux-import run was not done (no Linux runtime here, Docker Desktop was not running); the fork's Linux CI runs all new tests, and I did not wait for its result before writing this.
+- The actual Windows-export-to-Linux-import run was not done (no Linux runtime here, Docker Desktop was not running); the fork's Linux CI runs all new tests, including the manifest test, and passed.
 - `test_overlong_storage_path_keeps_existing_filename` is skipped on Windows because overlong names are now shortened, not replaced by the ID name (by design).
 - Local line endings: `core.autocrlf=true` checks the test sample files out with CRLF, which breaks 4 parser tests (skip list, P11 should check out with `autocrlf=false`).
 
 **Windows suite after P3:** `windows\scripts\run-tests.ps1`: **4,143 passed, 99 skipped, 0 failed** of 4,242 cases (P2: 4,048 / 149 failed; P1: 3,979 / 195 failed). Skips: 84 from our list + 15 upstream skips.
 
 **Gotcha for P6/P11 (UTF-8):** Windows' default code page is cp1252, so any `open()`/`read_text()` without an `encoding` argument misreads UTF-8 files. Running tests without `PYTHONUTF8=1` produced extra failures (classifier fixtures raised `UnicodeDecodeError: 'charmap'`). `windows/scripts/run-tests.ps1` sets it; the Windows CI job (P11) and **every child process the supervisor starts (P6, and the WinSW service config in P9)** must set `PYTHONUTF8=1` too. Setting it from inside `bootstrap.apply()` is too late for the running interpreter, so it has to come from the launcher.
+
+**Process note:** an early version of `run-tests.ps1` bound the first positional argument to `-Junit`, so `run-tests.ps1 documents/tests/test_x.py` made pytest overwrite that test file with its JUnit XML. Caught immediately (`git checkout` restored it, nothing was committed) and fixed with `PositionalBinding = $false`. Always pass `-Junit` by name.
