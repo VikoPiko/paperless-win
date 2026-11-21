@@ -17,6 +17,8 @@ from django.conf import settings
 from PIL import Image
 from PIL import ImageSequence
 
+from paperless_win.pdf import shim_subprocess  # winport: pikepdf instead of qpdf (P04)
+
 if TYPE_CHECKING:
     from django.db.models import Model
     from django.db.models import QuerySet
@@ -168,6 +170,10 @@ def run_subprocess(
     """
     Runs a subprocess and logs its output, checking return code if requested
     """
+
+    # winport: qpdf --replace-input runs in-process via pikepdf on Windows (P04)
+    if (shimmed := shim_subprocess(arguments, logger)) is not None:
+        return shimmed
 
     proc_name = arguments[0]
 

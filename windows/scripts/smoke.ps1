@@ -12,7 +12,8 @@
   Uploads windows/fixtures/smoke.pdf through the REST API, waits (max 5 min) for the
   consume task, then asserts: the document exists, its OCR content contains the known
   word, the thumbnail returns 200, the original downloads, and full-text search finds it.
-  The uploaded document is deleted afterwards unless -Keep is given.
+  With -Barcode it also checks that a separator-page PDF is split into two documents.
+  The uploaded document(s) are deleted afterwards unless -Keep is given.
   Exit code 0 = all assertions passed, 1 = a failure, 2 = bad setup.
 #>
 [CmdletBinding()]
@@ -20,7 +21,10 @@ param(
     [string]$Fixture = (Join-Path $PSScriptRoot '..\fixtures\smoke.pdf'),
     [string]$KnownWord = 'zebrafish',
     [int]$TimeoutSeconds = 300,
-    [switch]$Keep
+    [switch]$Keep,
+    # Also upload windows/fixtures/barcode.pdf (3 pages, PATCHT separator in the middle) and expect two
+    # documents. The server must run with PAPERLESS_CONSUMER_ENABLE_BARCODES=true.
+    [switch]$Barcode
 )
 
 $ErrorActionPreference = 'Stop'
@@ -93,6 +97,39 @@ finally {
     }
 }
 
+# 6. barcode separator scenario ------------------------------------------------------------------
+if ($Barcode) {
+    Write-Host 'Barcode scenario'
+    $bcFixture = Join-Path (Split-Path $Fixture) 'barcode.pdf'
+    if (-not (Test-Path $bcFixture)) { Write-Error "fixture not found: $bcFixture"; exit 2 }
+    $stem = "winport-bc-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+    $tmpPdf = Join-Path ([IO.Path]::GetTempPath()) "$stem.pdf"
+    Copy-Item $bcFixture $tmpPdf
+    $parts = @()
+    try {
+        Invoke-RestMethod "$base/api/documents/post_document/" -Method Post -Headers $headers -Form @{ document = (Get-Item $tmpPdf) } | Out-Null
+        $bcDeadline = (Get-Date).AddSeconds($TimeoutSeconds)
+        do {
+            Start-Sleep -Seconds 3
+            $res = Invoke-RestMethod "$base/api/documents/?title__istartswith=$stem" -Headers $headers
+            $parts = @($res.results)
+        } while ($parts.Count -lt 2 -and (Get-Date) -lt $bcDeadline)
+        Start-Sleep -Seconds 3   # make sure no third document appears
+        $parts = @((Invoke-RestMethod "$base/api/documents/?title__istartswith=$stem" -Headers $headers).results)
+        Assert-That ($parts.Count -eq 2) "barcode PDF was split into 2 documents (got $($parts.Count))"
+        $text = ($parts | ForEach-Object { "$($_.content)" }) -join ' '
+        Assert-That ($text -match 'lemurtangerine' -and $text -match 'ocelotbiscuit') 'both parts carry their own OCR text'
+        Assert-That (-not ($text -match 'PATCHT')) 'the separator page itself was dropped'
+        $one = @($parts | Where-Object { "$($_.content)" -match 'lemurtangerine' -and "$($_.content)" -match 'ocelotbiscuit' })
+        Assert-That ($one.Count -eq 0) 'no document contains both parts'
+    }
+    finally {
+        Remove-Item $tmpPdf -ErrorAction SilentlyContinue
+        if (-not $Keep) {
+            foreach ($p in $parts) { Invoke-RestMethod "$base/api/documents/$($p.id)/" -Method Delete -Headers $headers | Out-Null }
+        }
+    }
+}
 if ($failures.Count -gt 0) {
     Write-Host "Smoke test FAILED: $($failures.Count) assertion(s)" -ForegroundColor Red
     exit 1

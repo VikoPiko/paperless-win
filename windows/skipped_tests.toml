@@ -68,13 +68,11 @@ tests = [
 ]
 
 [[skip]]
-reason = "depends on the qpdf CLI / pdftoppm mocking details that change when the CLIs are replaced by pikepdf"
-follow_up = "P4"
+reason = "simulates a missing pdfinfo executable; on Windows the page size is read with pikepdf (paperless_win.pdf), so there is no pdfinfo call to fail"
+follow_up = "none; behaviour differs by design (P4)"
 tests = [
-  "src/documents/tests/test_parsers.py::TestMakeThumbnailFromPdf::test_qpdf_repair_produces_real_thumbnail",
-  "src/paperless/tests/parsers/test_tesseract_parser.py::TestGetThumbnail::test_thumbnail_fallback_on_pdftoppm_error",
+  "src/paperless/tests/test_parser_utils.py::TestGetPdfFirstPageSizePoints::test_pdfinfo_not_installed_returns_none",
 ]
-
 [[skip]]
 reason = "unexplained Windows-only difference (SVG validation message, date/timezone edge, SQLite WAL file locking); not yet investigated"
 follow_up = "triage after P4"

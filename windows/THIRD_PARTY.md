@@ -30,3 +30,14 @@ dependencies are listed by `pyproject.toml` / `uv.lock` and are not repeated her
 | pnpm      | 11.15.1 | MIT                                     | https://pnpm.io/             |                                                                   |
 
 Planned, not yet bundled: WinSW (MIT, P9), Inno Setup (dev only, P10).
+
+## Not bundled (user-installed, optional)
+
+| Component                   | License          | Used for                                         | Notes                                                                                                                                   |
+| --------------------------- | ---------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Gpg4win / GnuPG for Windows | GPL-3.0-or-later | Decrypting GPG-encrypted mail (`paperless_mail`) | Found in its default install folders by `paperless_win.platform.gpg_dirs()`. Git for Windows' msys `gpg` is ignored on purpose.         |
+| unpaper                     | GPL-2.0-or-later | `PAPERLESS_OCR_CLEAN=clean`                      | No maintained Windows build; the setting defaults to `none` (D10). A user-supplied binary can be selected with `PAPERLESS_BIN_UNPAPER`. |
+
+## Dropped by P4
+
+`qpdf` and `pdfinfo` are **not needed** on Windows: `paperless_win.pdf` does the same work with pikepdf (`qpdf --replace-input` repairs, page size). `pdftoppm` and `pdftotext` (Poppler) are still used and ship in the Poppler package. `pdfinfo.exe` is part of that same package, so the upstream binary check, which still looks for it, cannot trigger in a normal install.

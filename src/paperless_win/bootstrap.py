@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
+from paperless_win import magic_compat
 from paperless_win import platform
 
 if TYPE_CHECKING:
@@ -28,6 +29,14 @@ def _prepend_path(directories: list[Path]) -> None:
         os.environ["PATH"] = os.pathsep.join([*new, current] if current else new)
 
 
+def _append_path(directories: list[Path]) -> None:
+    current = os.environ.get("PATH", "")
+    existing = {p.lower() for p in current.split(os.pathsep) if p}
+    new = [str(d) for d in directories if str(d).lower() not in existing]
+    if new:
+        os.environ["PATH"] = os.pathsep.join([current, *new] if current else new)
+
+
 def _find_in(directories: list[Path], filename: str) -> Path | None:
     for directory in directories:
         candidate = directory / filename
@@ -43,6 +52,9 @@ def apply() -> None:
 
     dirs = platform.bin_dirs()
     _prepend_path(dirs)
+    _append_path(
+        platform.gpg_dirs(),
+    )  # optional gpg: after our own tools, never in front
 
     add_dll_directory = getattr(os, "add_dll_directory", None)
     if add_dll_directory is not None:
@@ -69,3 +81,9 @@ def apply() -> None:
     # consume. If the user supplies a binary, keep upstream's default.
     if platform.find_binary("unpaper") is None:
         os.environ.setdefault("PAPERLESS_OCR_CLEAN", "none")
+
+    # libmagic cannot open non-ASCII paths on Windows (D8 follow-up)
+    try:
+        magic_compat.install()
+    except ImportError:
+        pass  # python-magic is not installed (e.g. a minimal test environment)
