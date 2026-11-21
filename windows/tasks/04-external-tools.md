@@ -60,3 +60,5 @@ Cut the number of CLI tools we have to bundle, and make the remaining ones work 
 **Windows suite after P4:** 4,246 passed, 98 skipped, 0 failed, of 4,344 cases (P3: 4,143 / 99). `check_patches.py` OK (17 files).
 
 **Process note:** a background "wait for the test run" shell loop waited for an `exit` line the run never wrote, so it looked like the tests were stuck for about 80 minutes while they had finished in 4.5 minutes. Use the test run's own completion notification, not an `until grep` loop.
+
+**Linux CI:** fork CI on `433295b`: Backend Tests (Python 3.11 to 3.14), Lint, Static Analysis, Frontend Tests and `winport CI` all green. The first push failed one of my own P3 tests on Linux (`test_linux_keeps_names_verbatim`): upstream sanitises template values with pathvalidate's _universal_ rules on every OS, so the test's premise was wrong. Removed (the no-op-on-Linux property of `paperless_win.paths` is covered by its unit tests) and the P3 note corrected.
