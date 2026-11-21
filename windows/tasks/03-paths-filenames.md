@@ -73,3 +73,5 @@ Paths stored in the DB and in export manifests are always POSIX (`a/b/c.pdf`) on
 - Local line endings: `core.autocrlf=true` checks the test sample files out with CRLF, which breaks 4 parser tests (skip list, P11 should check out with `autocrlf=false`).
 
 **Windows suite after P3:** `windows\scripts\run-tests.ps1`: **4,143 passed, 99 skipped, 0 failed** of 4,242 cases (P2: 4,048 / 149 failed; P1: 3,979 / 195 failed). Skips: 84 from our list + 15 upstream skips.
+
+**Gotcha for P6/P11 (UTF-8):** Windows' default code page is cp1252, so any `open()`/`read_text()` without an `encoding` argument misreads UTF-8 files. Running tests without `PYTHONUTF8=1` produced extra failures (classifier fixtures raised `UnicodeDecodeError: 'charmap'`). `windows/scripts/run-tests.ps1` sets it; the Windows CI job (P11) and **every child process the supervisor starts (P6, and the WinSW service config in P9)** must set `PYTHONUTF8=1` too. Setting it from inside `bootstrap.apply()` is too late for the running interpreter, so it has to come from the launcher.
