@@ -35,6 +35,12 @@ $Pins = @{
         Url  = 'https://github.com/ip7z/7zip/releases/download/26.06/7z2606-x64.msi'
         Sha  = '6dc822569e777d9a3ecd5ffcbc22b55600af87e6c5d9810a64e8566cf5a4af9f'
     }
+    Node = @{
+        # Angular 21 needs Node >= 22.22.3 or >= 24.15; upstream's Dockerfile builds with Node 24.
+        File = 'node-v24.22.3-win-x64.zip'
+        Url  = 'https://nodejs.org/dist/v24.22.3/node-v24.22.3-win-x64.zip'
+        Sha  = 'e612af99f626ab415ea225af6bce5c971feb448cb5cae250bb1c3fa50c5f7d9f'
+    }
     Tesseract = @{
         File = 'tesseract-ocr-w64-setup-5.4.0.20240606.exe'
         Url  = 'https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe'
@@ -105,16 +111,6 @@ uv python install 3.13
 if ($LASTEXITCODE -ne 0) { throw 'uv python install failed' }
 Write-Step 'git'
 Install-WingetPackage 'Git.Git' 'git'
-if (-not $SkipNode) {
-    Write-Step 'Node LTS + pnpm'
-    Install-WingetPackage 'OpenJS.NodeJS.LTS' 'node'
-    if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
-        # corepack ships with Node; fall back to npm if it is unavailable
-        corepack enable 2>$null
-        if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) { npm install --global pnpm | Out-Host }
-    }
-}
-
 # ---- 7-Zip (unpacked from MSI) ------------------------------------------------------
 # Tesseract and Ghostscript only ship as NSIS installers that ask for admin rights. We do
 # not run them; we unpack their payload with 7-Zip into .tools\ instead.
@@ -172,6 +168,26 @@ Write-Step 'Garnet'
 $GarnetDir = Join-Path $Tools 'garnet'
 Expand-Pinned 'Garnet' $GarnetDir 'GarnetServer.exe'
 
+# ---- Node 24 + pnpm (portable, only for building the frontend) ---------------------
+$NodeDir = Join-Path $Tools 'node'
+$PnpmVersion = '11.15.1'   # matches "packageManager" in src-ui/package.json
+if (-not $SkipNode) {
+    Write-Step "Node 24 + pnpm $PnpmVersion"
+    if (-not (Test-Tool (Join-Path $NodeDir 'node.exe'))) {
+        $zip = Get-Pinned 'Node'
+        $tmp = Join-Path $Tools 'node-unpack'
+        if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
+        if (Test-Path $NodeDir) { Remove-Item $NodeDir -Recurse -Force }
+        Expand-Archive -Path $zip -DestinationPath $tmp -Force
+        Move-Item (Get-ChildItem $tmp -Directory | Select-Object -First 1).FullName $NodeDir
+        Remove-Item $tmp -Recurse -Force
+    }
+    if (-not (Test-Path (Join-Path $NodeDir 'pnpm.cmd'))) {
+        $env:PATH = "$NodeDir;$env:PATH"
+        npm install --global --prefix $NodeDir "pnpm@$PnpmVersion" | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw 'npm install pnpm failed' }
+    }
+}
 # ---- resolve actual binary folders (archives nest differently) ---------------------
 function Find-Dir([string]$Root, [string]$Exe) {
     $hit = Get-ChildItem $Root -Recurse -Filter $Exe -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -185,6 +201,7 @@ $dirs = [ordered]@{
     Pngquant  = Find-Dir $PngquantDir 'pngquant.exe'
     Garnet    = Find-Dir $GarnetDir 'GarnetServer.exe'
 }
+if (-not $SkipNode) { $dirs.Node = $NodeDir }
 
 # ---- env.ps1 ---------------------------------------------------------------------------
 Write-Step 'Writing .tools\env.ps1'
@@ -212,5 +229,6 @@ Check 'garnet' { (Get-Item (Join-Path $dirs.Garnet 'GarnetServer.exe')).VersionI
 if (-not $SkipNode) { Check 'node' { node --version }; Check 'pnpm' { pnpm --version } }
 if (-not $ok) { throw 'bootstrap finished with errors' }
 Write-Host "`nDone. In each new shell run:  . .\.tools\env.ps1" -ForegroundColor Green
+
 
 
