@@ -704,7 +704,9 @@ class ConsumerPlugin(
                                     document,
                                     use_format=False,
                                 )
-                            document.filename = generated_filename
+                            document.filename = (
+                                generated_filename.as_posix()
+                            )  # winport: store POSIX paths (P03)
                             validate_path_in_root(
                                 document.source_path,
                                 settings.ORIGINALS_DIR,
@@ -740,7 +742,9 @@ class ConsumerPlugin(
                                         archive_filename=True,
                                         use_format=False,
                                     )
-                                document.archive_filename = generated_archive_filename
+                                document.archive_filename = (
+                                    generated_archive_filename.as_posix()
+                                )  # winport: store POSIX paths (P03)
                                 validate_path_in_root(
                                     document.archive_path,
                                     settings.ARCHIVE_DIR,
