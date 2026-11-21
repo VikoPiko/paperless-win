@@ -55,7 +55,7 @@ P7/P8 can run in parallel with P5/P6 once P4 is done.
 | --- | --------------------------- | ---------------------------------------------------------------------- | -------------- | -------------------------------- |
 | P0  | `00-fork-setup.md`          | Fork, remotes, fork docs, patch-checker, Windows CI skeleton           | No             | ☑ done (PR open)                 |
 | P1  | `01-spike.md`               | Manual Windows run end-to-end; findings decide go/no-go details        | **Yes**        | ◐ done, Findings awaiting review |
-| P2  | `02-platform-layer.md`      | `paperless_win.platform`: binary lookup, default paths, config search  | Yes            | ◐ code done, Linux CI pending    |
+| P2  | `02-platform-layer.md`      | `paperless_win.platform`: binary lookup, default paths, config search  | Yes            | ☑ done, CI green                 |
 | P3  | `03-paths-filenames.md`     | POSIX-stored paths, Windows-safe filenames, data migration             | Partly         | ☐                                |
 | P4  | `04-external-tools.md`      | pikepdf instead of qpdf/pdfinfo CLIs, poppler/libmagic wiring          | Yes            | ☐                                |
 | P5  | `05-consumer-robustness.md` | File-lock retries, stable-file detection, script dispatch, UNC polling | Yes            | ☐                                |
