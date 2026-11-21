@@ -1,0 +1,26 @@
+diff --git a/pyproject.toml b/pyproject.toml
+index 2cb26281e..df5719cd0 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -86,9 +86,11 @@ mariadb = [
+   "mysqlclient>=2.2.7,<2.4",
+ ]
+ postgres = [
+-  "psycopg[c,pool]==3.3.4",
++  "psycopg[c,pool]==3.3.4; sys_platform != 'win32'",
++  # winport-spike: no psycopg-c wheel on Windows, use the binary build
++  "psycopg[binary,pool]==3.3.4; sys_platform == 'win32'",
+   # Direct dependency for proper resolution of the pre-built wheels
+-  "psycopg-c==3.3.4",
++  "psycopg-c==3.3.4; sys_platform != 'win32'",
+   "psycopg-pool==3.3.3",
+ ]
+ webserver = [
+@@ -154,6 +156,7 @@ environments = [
+   "sys_platform == 'darwin' and platform_machine == 'arm64' and platform_python_implementation == 'CPython'",
+   "sys_platform == 'linux' and platform_machine == 'aarch64' and platform_python_implementation == 'CPython'",
+   "sys_platform == 'linux' and platform_machine == 'x86_64' and platform_python_implementation == 'CPython'",
++  "sys_platform == 'win32' and platform_machine == 'AMD64' and platform_python_implementation == 'CPython'", # winport-spike: add Windows to uv environments
+ ]
+ package = false
+ [tool.uv.sources]
