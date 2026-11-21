@@ -155,8 +155,8 @@ def gpg_dirs() -> list[Path]:
     if not IS_WINDOWS:
         return []
     roots = [
-        os.environ.get("ProgramFiles(x86)"),
-        os.environ.get("ProgramFiles"),
+        os.environ.get("PROGRAMFILES(X86)"),
+        os.environ.get("PROGRAMFILES"),
         os.environ.get("LOCALAPPDATA")
         and str(Path(os.environ["LOCALAPPDATA"]) / "Programs"),
     ]
