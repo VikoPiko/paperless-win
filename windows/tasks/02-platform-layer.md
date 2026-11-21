@@ -43,7 +43,7 @@ Also make sure `PATH` contains the bundled `bin` dirs at process start, so OCRmy
 ## Acceptance criteria
 
 - [x] With **no** tool folders on `PATH` but `PAPERLESS_BIN_DIR` set, `manage.py check` shows no binary warnings and `smoke.ps1` passes. _(Verified on Windows: `PATH` = System32 only, `PAPERLESS_WIN_APP_DIR` pointing at an empty folder so nothing is found implicitly, `PAPERLESS_BIN_DIR=.tools`; Garnet, web, worker, beat and consumer started under that environment, `smoke.ps1` exit 0.)_
-- [ ] Linux test suite unchanged (green). _(Not yet confirmed: see Findings, CI run on the fork is pending.)_
+- [x] Linux test suite unchanged (green). _(Fork CI on `e122d48`: Backend Tests green on Python 3.11, 3.12, 3.13 and 3.14 (4,175 upstream tests pass), Lint, Static Analysis, Frontend Tests and `winport CI` green. The first run failed 2 of my own new tests, which simulate Windows on Linux; fixed in `e122d48`.)_
 - [x] `check_patches.py` passes. Upstream files touched ≤ 5. _(P2 touches 2: `src/paperless/settings/__init__.py` and `src/paperless/checks.py`. The register has 5 rows overall, 3 from P0/P1.)_
 
 ## Findings
@@ -72,4 +72,4 @@ Because these are environment defaults, **no further upstream hunk was needed** 
 
 **CI lint gotcha:** the upstream `Lint` workflow runs `prek` over the whole fork and failed on the P0/P1 files: `windows/**/*.md` not prettier-formatted, files without a final newline, trailing whitespace in the font licence, `EXE001`/`INP001` on the scripts, and `pyproject-fmt` wanting two spaces before the `# winport:` comment. Fixed here by running the same hooks locally: **`uvx prek run --files <changed files>`** (about 25 s on Windows, modifies files in place, run it twice). PRs #1 and #2 will show a red Lint until this branch is merged or the fix is cherry-picked. Do this before every push from now on.
 
-**Pending:** Linux upstream suite (`Backend Tests`) result on this branch; see the PR description for the final status.
+**Linux CI:** green (see the acceptance list). Lesson: tests that fake Windows on Linux must emulate `PATHEXT` for `shutil.which`; see `fake_windows` in `src/paperless_win/tests/test_platform.py`.
