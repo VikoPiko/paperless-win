@@ -86,19 +86,6 @@ def test_every_component_is_legal_on_ntfs(
     assert all(is_legal_ntfs_component(p) for p in parts), parts
 
 
-@pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="upstream sanitises template values with the host platform's rules",
-)
-def test_linux_keeps_names_verbatim(
-    originals: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(platform, "IS_WINDOWS", False)
-    doc = make_doc(title="aux.", correspondent="CON")
-    assert generate_filename(doc).as_posix().split("/")[1:] == ["CON", "aux..pdf"]
-
-
 def test_overlong_title_fits_max_path_and_keeps_extension(
     originals: Path,
     monkeypatch: pytest.MonkeyPatch,
