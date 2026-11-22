@@ -220,7 +220,9 @@ class DirectoryExportSink(ExportSink):
             ):
                 tmp.unlink()
                 return
-        tmp.rename(target)
+        tmp.replace(
+            target,
+        )  # winport: rename() fails if the target exists on Windows (P03)
 
     def _finalize(self) -> None:
         if self._delete:

@@ -1,5 +1,4 @@
 import logging
-import os
 from pathlib import Path
 
 from django.conf import settings
@@ -8,6 +7,7 @@ from documents.models import Document
 from documents.templating.filepath import is_safe_relative_path
 from documents.templating.filepath import validate_filepath_template_and_render
 from documents.templating.utils import convert_format_str_to_template_format
+from paperless_win.paths import finalize_relative_path  # winport: NTFS-safe names (P03)
 
 logger = logging.getLogger("paperless.filehandling")
 
@@ -135,12 +135,22 @@ def format_filename(document: Document, template_str: str) -> str | None:
         rendered_filename = rendered_filename.replace("/-none-/", "/")
         rendered_filename = rendered_filename.replace(" -none-", "")
         rendered_filename = rendered_filename.replace("-none-", "")
-        rendered_filename = rendered_filename.strip(os.sep)
+        rendered_filename = rendered_filename.strip(
+            "/",
+        )  # winport: templates are "/"-joined on every OS; also drops the unused os import (P03)
 
     rendered_filename = rendered_filename.replace(
         "-none-",
         "none",
     )  # backward compatibility
+
+    # winport: sanitise components and keep the path under MAX_PATH on Windows; no-op elsewhere (P03)
+    rendered_filename = finalize_relative_path(
+        rendered_filename,
+        settings.ORIGINALS_DIR,
+    )
+    if rendered_filename is None:
+        return None
 
     # Validate again after remove none
     if not is_safe_relative_path(rendered_filename):

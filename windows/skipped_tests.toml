@@ -1,0 +1,85 @@
+# Tests skipped on Windows. Applied by src/paperless_win/pytest_plugin.py (Windows only).
+# Every entry needs a reason and a follow_up. Policy: windows/SKIPPED_TESTS.md.
+
+[[skip]]
+reason = "gpg is not on PATH on Windows (Git ships an msys gpg; Gpg4win is the native option). Mail GPG decryption is optional"
+follow_up = "P4/P12: decide how to provide gpg"
+tests = [
+  "src/paperless_mail/tests/test_preprocessor.py::TestMailMessageGpgDecryptor",
+]
+
+[[skip]]
+reason = "relies on POSIX chmod/permission semantics, which NTFS ACLs do not mirror"
+follow_up = "none planned; OS semantics"
+tests = [
+  "src/documents/tests/test_file_handling.py::TestFileHandling::test_file_renaming_missing_permissions",
+  "src/documents/tests/test_management_exporter.py::TestExportImport::test_export_target_not_writable",
+  "src/documents/tests/test_management_importer.py::TestCommandImport::test_import_permission_error",
+  "src/documents/tests/test_management_importer.py::TestCommandImport::test_import_source_not_readable",
+  "src/documents/tests/test_sanity_check.py::TestCheckSanityArchive::test_unreadable",
+  "src/documents/tests/test_sanity_check.py::TestCheckSanityOriginal::test_unreadable",
+  "src/documents/tests/test_sanity_check.py::TestCheckSanityThumbnail::test_unreadable",
+  "src/paperless/tests/test_checks.py::TestChecks::test_paths_check_no_access",
+]
+
+[[skip]]
+reason = "compares str(Path) with a POSIX string; production code stores POSIX paths since P3 (the test, not the code, is wrong on Windows)"
+follow_up = "cheap upstreamable test fix (use as_posix); not submitted upstream"
+tests = [
+  "src/documents/tests/test_file_handling.py::TestFileHandling::test_document_delete",
+  "src/documents/tests/test_file_handling.py::TestFileHandling::test_document_delete_trash_dir",
+  "src/documents/tests/test_file_handling.py::TestFileHandling::test_file_renaming_database_error",
+  "src/documents/tests/test_file_handling.py::TestFileHandling::test_nested_directory_cleanup",
+  "src/documents/tests/test_filepath_nfc.py::TestContextBuilderNFCNormalization::test_nfd_custom_field_name_normalized_as_key",
+  "src/documents/tests/test_filepath_nfc.py::TestContextBuilderNFCNormalization::test_nfd_custom_field_string_value_normalized",
+  "src/documents/tests/test_filepath_nfc.py::TestContextBuilderNFCNormalization::test_nfd_tag_name_list_normalized_to_nfc",
+  "src/documents/tests/test_filepath_nfc.py::TestContextBuilderNFCNormalization::test_nfd_tag_name_normalized_in_tag_list",
+  "src/documents/tests/test_filepath_nfc.py::TestGenerateFilenameNFCNormalization::test_nfd_correspondent_normalized_to_nfc",
+  "src/documents/tests/test_filepath_nfc.py::TestGenerateFilenameNFCNormalization::test_nfd_storage_path_normalized_to_nfc",
+  "src/documents/tests/test_management_importer.py::TestCommandImport::test_import_files_exist",
+  "src/documents/tests/test_task_signals.py::TestBeforeTaskPublishHandler::test_overrides_path_serialized_as_string",
+  "src/paperless/tests/test_checks.py::TestEmailCertSettingsChecks::test_not_valid_file",
+]
+
+[[skip]]
+reason = "pre/post-consume scripts are executed directly; the test writes a POSIX shell script"
+follow_up = "P5 (script dispatch)"
+tests = [
+  "src/documents/tests/test_consumer.py::PostConsumeTestCase::test_script_exit_non_zero",
+  "src/documents/tests/test_consumer.py::PreConsumeTestCase::test_script_exit_non_zero",
+  "src/documents/tests/test_consumer.py::PreConsumeTestCase::test_script_with_output",
+]
+
+[[skip]]
+reason = "sample files are checked out with CRLF line endings (git autocrlf); expected text has LF"
+follow_up = "P11: check out with core.autocrlf=false on the Windows runner"
+tests = [
+  "src/paperless/tests/parsers/test_mail_parser.py::TestEmailFileParsing::test_parse_simple_text_email_file",
+  "src/paperless/tests/parsers/test_mail_parser.py::TestEmailMetadataExtraction::test_extract_metadata",
+  "src/paperless/tests/parsers/test_text_parser.py::TestTextParserParse::test_parse_invalid_utf8_bytes_replaced",
+  "src/paperless/tests/parsers/test_text_parser.py::TestTextParserParse::test_parse_valid_utf8",
+]
+
+[[skip]]
+reason = "by design on Windows: overlong names are shortened to fit MAX_PATH (paperless_win.paths) instead of falling back to the ID name"
+follow_up = "none; behaviour differs by design (P3)"
+tests = [
+  "src/documents/tests/test_file_handling.py::TestCustomFieldFilenameUpdates::test_overlong_storage_path_keeps_existing_filename",
+]
+
+[[skip]]
+reason = "depends on the qpdf CLI / pdftoppm mocking details that change when the CLIs are replaced by pikepdf"
+follow_up = "P4"
+tests = [
+  "src/documents/tests/test_parsers.py::TestMakeThumbnailFromPdf::test_qpdf_repair_produces_real_thumbnail",
+  "src/paperless/tests/parsers/test_tesseract_parser.py::TestGetThumbnail::test_thumbnail_fallback_on_pdftoppm_error",
+]
+
+[[skip]]
+reason = "unexplained Windows-only difference (SVG validation message, date/timezone edge, SQLite WAL file locking); not yet investigated"
+follow_up = "triage after P4"
+tests = [
+  "src/documents/tests/test_api_app_config.py::TestApiAppConfig::test_api_rejects_malicious_svg_logo",
+  "src/documents/tests/test_api_documents.py::TestDocumentApi::test_document_created_format",
+  "src/paperless_ai/tests/test_vector_store.py::TestCompact::test_failed_compact_removes_temp_wal_and_shm",
+]

@@ -3,6 +3,7 @@ import logging
 import os
 import platform
 import re
+import shutil  # winport: for disk_usage (P03)
 import tempfile
 import zipfile
 from collections import Counter
@@ -268,6 +269,7 @@ from paperless_mail.models import MailRule
 from paperless_mail.oauth import PaperlessMailOAuth2Manager
 from paperless_mail.serialisers import MailAccountSerializer
 from paperless_mail.serialisers import MailRuleSerializer
+from paperless_win.files import open_and_discard  # winport: temp files (P03)
 
 if settings.AUDIT_LOG_ENABLED:
     from auditlog.models import LogEntry
@@ -4127,8 +4129,7 @@ class BulkDownloadView(DocumentSelectionMixin, GenericAPIView[Any]):
                 for document in versioned_documents:
                     strategy.add_document(document)
 
-            f = temp_path.open("rb")
-            temp_path.unlink()
+            f = open_and_discard(temp_path)  # winport: Windows unlink (P03)
         except Exception:
             temp_path.unlink(missing_ok=True)
             raise
@@ -4215,7 +4216,9 @@ class StoragePathViewSet(PermissionsAwareDocumentCountMixin, ModelViewSet[Storag
                 Path(str(document.filename)).suffix if document.filename else ""
             ) or document.file_type
             result_path = Path(result)
-            result = str(result_path.with_name(f"{result_path.name}{extension}"))
+            result = result_path.with_name(
+                f"{result_path.name}{extension}",
+            ).as_posix()  # winport: POSIX (P03)
         return Response(result)
 
 
@@ -5355,7 +5358,7 @@ class SystemStatusView(PassUserMixin):
             )
             db_error = "Error connecting to database, check logs for more detail."
 
-        media_stats = os.statvfs(settings.MEDIA_ROOT)
+        media_stats = shutil.disk_usage(settings.MEDIA_ROOT)  # winport (P03)
 
         redis_url = settings._CHANNELS_REDIS_URL
         redis_url_parsed = urlparse(redis_url)
@@ -5534,8 +5537,8 @@ class SystemStatusView(PassUserMixin):
                 "server_os": platform.platform(),
                 "install_type": install_type,
                 "storage": {
-                    "total": media_stats.f_frsize * media_stats.f_blocks,
-                    "available": media_stats.f_frsize * media_stats.f_bavail,
+                    "total": media_stats.total,
+                    "available": media_stats.free,
                 },
                 "database": {
                     "type": db_conn.vendor,

@@ -103,7 +103,7 @@ def parse_w_workflow_placeholders(
         "document_type": doc_type_name,
         "added": local_added.isoformat(),
         "added_year": local_added.strftime("%Y"),
-        "added_year_short": local_added.strftime("%y"),
+        "added_year_short": f"{local_added.year % 100:02d}",  # winport: strftime(%y) fails before 1900 on Windows (P03)
         "added_month": local_added.strftime("%m"),
         "added_month_name": local_added.strftime("%B"),
         "added_month_name_short": local_added.strftime("%b"),
@@ -119,7 +119,7 @@ def parse_w_workflow_placeholders(
             {
                 "created": created.isoformat(),
                 "created_year": created.strftime("%Y"),
-                "created_year_short": created.strftime("%y"),
+                "created_year_short": f"{created.year % 100:02d}",  # winport: strftime(%y) fails before 1900 on Windows (P03)
                 "created_month": created.strftime("%m"),
                 "created_month_name": created.strftime("%B"),
                 "created_month_name_short": created.strftime("%b"),

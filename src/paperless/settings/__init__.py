@@ -150,6 +150,7 @@ INSTALLED_APPS = [
     "paperless",
     "documents.apps.DocumentsConfig",
     "paperless_mail.apps.PaperlessMailConfig",
+    "paperless_win.apps.PaperlessWinConfig",  # winport: fork app for data migrations (P03)
     "django.contrib.admin",
     "rest_framework",
     "rest_framework.authtoken",

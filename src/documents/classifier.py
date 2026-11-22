@@ -114,7 +114,9 @@ class _SignedFileWriter:
                     self._file.seek(0)
                     self._file.write(self._mac.digest())
             if exc_type is None:
-                self._temp.rename(self._target)
+                self._temp.replace(
+                    self._target,
+                )  # winport: rename() fails if the target exists on Windows (P03)
         finally:
             # A no-op after a successful rename, otherwise removes the partial file
             self._temp.unlink(missing_ok=True)

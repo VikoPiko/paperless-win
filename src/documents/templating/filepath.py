@@ -1,5 +1,4 @@
 import logging
-import os
 import re
 import unicodedata
 from collections.abc import Iterable
@@ -48,7 +47,9 @@ class FilePathTemplate(Template):
 
             # We remove trailing and leading separators, as these are always relative paths, not absolute, even if the user
             # tries
-            return value.strip().strip(os.sep)
+            return value.strip().strip(
+                "/",
+            )  # winport: templates are "/"-joined on every OS; also drops the unused os import (P03)
 
         original_render = super().render(*args, **kwargs)
 
@@ -145,7 +146,7 @@ def get_creation_date_context(document: Document) -> dict[str, str]:
     return {
         "created": document.created.isoformat(),
         "created_year": document.created.strftime("%Y"),
-        "created_year_short": document.created.strftime("%y"),
+        "created_year_short": f"{document.created.year % 100:02d}",  # winport: strftime(%y) fails before 1900 on Windows (P03)
         "created_month": document.created.strftime("%m"),
         "created_month_name": document.created.strftime("%B"),
         "created_month_name_short": document.created.strftime("%b"),
@@ -163,7 +164,7 @@ def get_added_date_context(document: Document) -> dict[str, str]:
     return {
         "added": local_added.isoformat(),
         "added_year": local_added.strftime("%Y"),
-        "added_year_short": local_added.strftime("%y"),
+        "added_year_short": f"{local_added.year % 100:02d}",  # winport: strftime(%y) fails before 1900 on Windows (P03)
         "added_month": local_added.strftime("%m"),
         "added_month_name": local_added.strftime("%B"),
         "added_month_name_short": local_added.strftime("%b"),

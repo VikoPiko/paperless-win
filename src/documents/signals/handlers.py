@@ -527,7 +527,9 @@ def update_filename_and_move_files(
                 new_filename = candidate_filename
 
             # Need to convert to string to be able to save it to the db
-            instance.filename = str(new_filename)
+            instance.filename = (
+                new_filename.as_posix()
+            )  # winport: store POSIX paths (P03)
             move_original = (
                 old_filename != instance.filename and not original_already_moved
             )
@@ -565,7 +567,9 @@ def update_filename_and_move_files(
                 else:
                     new_archive_filename = archive_candidate
 
-                instance.archive_filename = str(new_archive_filename)
+                instance.archive_filename = (
+                    new_archive_filename.as_posix()
+                )  # winport: store POSIX paths (P03)
 
                 move_archive = (
                     old_archive_filename != instance.archive_filename

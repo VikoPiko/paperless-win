@@ -1,5 +1,6 @@
 import datetime
 import logging
+import os  # winport: for os.close (P03)
 import shutil
 import uuid
 import zipfile
@@ -430,7 +431,7 @@ def update_document_content_maybe_archive_file(
                     document.archive_filename = generate_unique_filename(
                         document,
                         archive_filename=True,
-                    )
+                    ).as_posix()  # winport: store POSIX paths (P03)
                     Document.objects.filter(pk=document.pk).update(
                         archive_checksum=checksum,
                         content=parser.get_text(),
@@ -897,7 +898,8 @@ def build_share_link_bundle(bundle_id: int) -> None:
 
     documents = list(bundle.documents.all().order_by("pk"))
 
-    _, temp_zip_path_str = mkstemp(suffix=".zip", dir=settings.SCRATCH_DIR)
+    fd, temp_zip_path_str = mkstemp(suffix=".zip", dir=settings.SCRATCH_DIR)
+    os.close(fd)  # winport: open fd breaks shutil.move on Windows (P03)
     temp_zip_path = Path(temp_zip_path_str)
 
     try:
