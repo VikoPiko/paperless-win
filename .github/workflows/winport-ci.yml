@@ -1,0 +1,50 @@
+name: winport CI
+on:
+  push:
+    branches:
+      - main
+      - 'winport/**'
+      - 'sync/**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+concurrency:
+  group: winport-ci-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  check-patches:
+    name: Patch inventory
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Check PATCHES.md matches winport markers
+        run: python windows/scripts/check_patches.py
+  windows-import:
+    name: Windows import smoke
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.13"
+      # TODO(P1/P2): run `uv sync` here. It currently fails on Windows because
+      # [tool.uv] `environments` in pyproject.toml only lists linux/macOS, so the
+      # lockfile has no Windows resolution. See windows/tasks/00-fork-setup.md Findings.
+      - name: Import paperless_win (no project sync yet)
+        env:
+          PYTHONPATH: src
+        run: uv run --no-project --python 3.13 python -c "import paperless_win, paperless_win.platform; print(paperless_win.__version__)"
