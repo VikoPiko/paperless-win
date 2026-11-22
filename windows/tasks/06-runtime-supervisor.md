@@ -60,24 +60,24 @@ Subcommands:
 
 ### Measured
 
-| What | Result |
-|---|---|
-| Worker start (process start to ready) | 2.4-3 s |
-| Worker killed, restarted | 1.3-1.9 s |
-| Ctrl-C / `paperless-ctl stop`, all children gone | 6-11 s, no orphans |
-| Task past the time limit | tree killed, worker restarted, `PaperlessTask` marked FAILURE |
-| Integration script | all checks green |
+| What                                             | Result                                                        |
+| ------------------------------------------------ | ------------------------------------------------------------- |
+| Worker start (process start to ready)            | 2.4-3 s                                                       |
+| Worker killed, restarted                         | 1.3-1.9 s                                                     |
+| Ctrl-C / `paperless-ctl stop`, all children gone | 6-11 s, no orphans                                            |
+| Task past the time limit                         | tree killed, worker restarted, `PaperlessTask` marked FAILURE |
+| Integration script                               | all checks green                                              |
 
 4-hour soak (`soak-long.ps1`, 2 workers, 60 files every ~9 min, 23 runs, 1664 samples; samples in `.spike/soak-long/soak-long-samples.csv`, not committed):
 
-| process | first MB | last MB | peak MB | MB/hour |
-|---|---|---|---|---|
-| beat | 128 | 129 | 129 | 0.1 |
-| consumer | 132 | 134 | 134 | 0.5 |
-| garnet | 218 | 266 | 268 | 10.9 |
-| supervisor | 55 | 58 | 58 | 0.4 |
-| web | 196 | 212 | 216 | 2.6 |
-| worker1 / worker2 | 132 | 132 | 580 / 578 | about 0 |
+| process           | first MB | last MB | peak MB   | MB/hour |
+| ----------------- | -------- | ------- | --------- | ------- |
+| beat              | 128      | 129     | 129       | 0.1     |
+| consumer          | 132      | 134     | 134       | 0.5     |
+| garnet            | 218      | 266     | 268       | 10.9    |
+| supervisor        | 55       | 58      | 58        | 0.4     |
+| web               | 196      | 212     | 216       | 2.6     |
+| worker1 / worker2 | 132      | 132     | 580 / 578 | about 0 |
 
 - Workers peak at about 580 MB while OCRing, and go back to 132 MB because each worker exits after every task (`PAPERLESS_WIN_RECYCLE_AFTER=1`, default kept). No stuck tasks in any run, no duplicate documents, no consume task failed, 1380 of 1380 files became documents.
 - Garnet grows by about 11 MB/hour and web by 2.6 MB/hour. Garnet holds task results and the broker queues, so some growth is data, and 48 MB over 4 h is not a leak that matters for a service that restarts with updates. It is not flat though: **a 24 h+ soak would settle it**; not done.

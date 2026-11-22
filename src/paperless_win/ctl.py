@@ -806,7 +806,7 @@ def build_parser() -> argparse.ArgumentParser:
     setup.add_argument("--media-dir")
     setup.add_argument(
         "--conf",
-        help="where to write it (default: %ProgramData%\\paperless-win)",
+        help="where to write it (default: %%ProgramData%%\\paperless-win)",
     )
     setup.add_argument("--ocr-languages", default="eng", help="for example eng+deu")
     setup.add_argument("--port", type=int, default=8000)
