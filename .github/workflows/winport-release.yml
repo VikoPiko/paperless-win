@@ -141,6 +141,8 @@ jobs:
         shell: pwsh
         run: |
           sc.exe queryex paperless-win
+          icacls C:\paperless-win\venv\Lib\site-packages\msgpack\fallback.py
+          icacls C:\paperless-win
           Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Service Control Manager' } -MaxEvents 15 -ErrorAction SilentlyContinue |
             ForEach-Object { "$($_.TimeCreated) $($_.Message)" }
           $logs = @(Get-ChildItem C:\paperless-data\logs -Recurse -Filter *.log -ErrorAction SilentlyContinue | Sort-Object FullName)
