@@ -94,3 +94,5 @@ Subcommands:
 
 - Keep recycle-after-1 as the default; users with many tiny documents can raise it, at the cost of the memory peak staying resident.
 - Retry-on-"Access is denied" for the search index commit (see above).
+
+**Follow-up done (after P12):** the search index commit is retried on "Access is denied" (`paperless_win/index.py`, one-line hook in `documents/search/_backend.py`, registered in `PATCHES.md`). It had failed one test in the full suite in each of the last two CI runs.

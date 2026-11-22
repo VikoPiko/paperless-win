@@ -40,6 +40,7 @@ from documents.search._tokenizer import register_tokenizers
 from documents.utils import IterWrapper
 from documents.utils import QuerySetStream
 from documents.utils import identity
+from paperless_win.index import commit_with_retry  # winport: retry index commit (P6)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -257,7 +258,9 @@ class WriteBatch:
     def __exit__(self, exc_type, exc_val, exc_tb):
         try:
             if exc_type is None:
-                self._writer.commit()
+                commit_with_retry(
+                    self._writer,
+                )  # winport: retry "Access is denied" (P6)
                 # Wait for background merge threads to finish before releasing
                 # the file lock so the next writer doesn't race against an
                 # in-progress merge on the same index files.
