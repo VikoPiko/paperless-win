@@ -43,12 +43,12 @@
       "name": "Ghostscript",
       "version": "10.08.0",
       "license": "AGPL-3.0",
-      "source": "https://github.com/ArtifexSoftware/ghostpdl-downloads",
+      "source": "https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/tag/gs10080",
       "file": "gs10080w64.exe",
       "url": "https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10080/gs10080w64.exe",
       "sha256": "52a91b8bf09298788d7a57b9206127026c23eacd75405f0a131e26dc381dce50",
       "scope": "bundled",
-      "notes": "Source offer must accompany the installer"
+      "notes": "AGPL: the unmodified source of this version is https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10080/ghostscript-10.08.0.tar.gz (named on the installer's licence page and in THIRD_PARTY.md)"
     },
     {
       "id": "Poppler",

@@ -41,6 +41,9 @@ def test_conf_points_everything_at_the_data_dir(tmp_path: Path) -> None:
 def test_conf_is_local_only_by_default(tmp_path: Path) -> None:
     conf = parse(setup_conf.render_conf(values(tmp_path), "key"))
     assert conf["PAPERLESS_BIND_ADDR"] == "127.0.0.1"
+    assert (
+        conf["PAPERLESS_APP_TITLE"] == "paperless-win"
+    )  # branding without touching the UI code
     assert conf["PAPERLESS_PORT"] == "8000"
 
 
