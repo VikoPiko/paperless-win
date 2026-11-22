@@ -27,7 +27,7 @@ Office and email-to-PDF conversion works on Windows without containers, using us
 
 ## Findings
 
-**Status: done and verified on a real stack on this machine; the CI job `windows-office` runs the same script on a GitHub runner.**
+**Status: done and verified on a real stack on this machine; the CI job `windows-office` runs the same script on a GitHub runner and passes (6.6 min on `windows-latest`, with Java and Edge from the image).**
 
 ### Design (deviates from the task text: proposed, needs the owner's OK to be recorded in `DECISIONS.md`)
 
