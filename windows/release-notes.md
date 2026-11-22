@@ -21,7 +21,8 @@ Run the installer, choose the data folder, the consume folder, an administrator 
 ## Known limitations
 
 - Windows 10 and 11 on x64 only.
-- Office documents (Word, Excel, ...) need LibreOffice and Tika/Gotenberg, which are not bundled yet.
+- Office documents (Word, Excel, ...) and e-mail need LibreOffice, Java and a Tika server that you install yourself (not bundled; see `windows/docs/configuration.md`). Starting them as the service account is untested.
+- Not yet tried on a clean Windows machine by a second person; the Windows service was tested in CI, not across a reboot.
 - No HTTPS in the box: put a reverse proxy in front of it, or keep it on your own network.
 - Not code-signed (see above).
 - Not every upstream test runs on Windows: the skipped ones are listed with their reasons in `windows/SKIPPED_TESTS.md`.
