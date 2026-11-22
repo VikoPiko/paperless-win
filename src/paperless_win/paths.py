@@ -133,3 +133,36 @@ def finalize_relative_path(
     if not platform.IS_WINDOWS:
         return rel
     return shorten_to_fit(root, sanitize_relative_path(rel), reserve=reserve)
+
+
+# Keys the exporter writes (documents.settings.EXPORTER_*_NAME) and the model fields that hold
+# stored relative paths. Duplicated as literals so this module never imports Django models.
+_MANIFEST_PATH_KEYS = (
+    "__exported_file_name__",
+    "__exported_thumbnail_name__",
+    "__exported_archive_name__",
+    "__exported_share_link_bundle_name__",
+)
+_MANIFEST_PATH_FIELDS = ("filename", "archive_filename", "file_path")
+
+
+def normalize_manifest_record(record: dict) -> dict:
+    """Accept ``\\`` as well as ``/`` in the paths of an export manifest record.
+
+    Called for every record the importer reads. The exporter always writes ``/``, so this
+    only matters for hand-edited or foreign manifests. Windows only: there ``\\`` can never
+    be part of a file name, so converting it is always correct; on Linux it would be.
+    """
+    if not platform.IS_WINDOWS:
+        return record
+    for key in _MANIFEST_PATH_KEYS:
+        value = record.get(key)
+        if isinstance(value, str):
+            record[key] = value.replace("\\", "/")
+    fields = record.get("fields")
+    if isinstance(fields, dict):
+        for name in _MANIFEST_PATH_FIELDS:
+            value = fields.get(name)
+            if isinstance(value, str):
+                fields[name] = value.replace("\\", "/")
+    return record

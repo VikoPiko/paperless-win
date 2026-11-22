@@ -11,3 +11,6 @@ class PaperlessWinConfig(AppConfig):
     name = "paperless_win"
     label = "paperless_win"
     verbose_name = "paperless-win"
+
+    def ready(self) -> None:
+        from paperless_win import checks  # noqa: F401  (registers the system checks)

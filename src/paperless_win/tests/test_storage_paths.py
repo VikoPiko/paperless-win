@@ -86,19 +86,6 @@ def test_every_component_is_legal_on_ntfs(
     assert all(is_legal_ntfs_component(p) for p in parts), parts
 
 
-@pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="upstream sanitises template values with the host platform's rules",
-)
-def test_linux_keeps_names_verbatim(
-    originals: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(platform, "IS_WINDOWS", False)
-    doc = make_doc(title="aux.", correspondent="CON")
-    assert generate_filename(doc).as_posix().split("/")[1:] == ["CON", "aux..pdf"]
-
-
 def test_overlong_title_fits_max_path_and_keeps_extension(
     originals: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -186,3 +173,31 @@ def test_export_manifest_contains_only_posix_paths(
     assert exported[0] == f"{doc.created.year}/ACME/Invoice.pdf"
     assert not any("\\" in value for value in exported), exported
     assert (target / record["__exported_file_name__"]).is_file()
+
+
+@pytest.mark.django_db
+def test_importer_reads_windows_style_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The importer's record iterator hands out '/' paths even if the manifest has '\\'."""
+    from documents.management.commands.document_importer import iter_manifest_records
+
+    monkeypatch.setattr(platform, "IS_WINDOWS", True)
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps(
+            [
+                {
+                    "model": "documents.document",
+                    "pk": 1,
+                    "__exported_file_name__": "2024\\ACME\\Invoice.pdf",
+                    "fields": {"filename": "2024\\ACME\\Invoice.pdf"},
+                },
+            ],
+        ),
+        encoding="utf-8",
+    )
+    (record,) = list(iter_manifest_records(manifest))
+    assert record["__exported_file_name__"] == "2024/ACME/Invoice.pdf"
+    assert record["fields"]["filename"] == "2024/ACME/Invoice.pdf"

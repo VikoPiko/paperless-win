@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import Final
 
+from paperless_win.pdf import page_size_hook  # winport: pikepdf replaces pdfinfo (P04)
+
 if TYPE_CHECKING:
     from paperless.parsers import MetadataEntry
 
@@ -301,6 +303,9 @@ def get_pdf_first_page_size_points(
         file has no pages, or the page size is degenerate.
     """
     _log = log or logger
+    # winport: on Windows page 1's size comes from pikepdf, not pdfinfo (P04)
+    if (size := page_size_hook(path, _log)) is not NotImplemented:
+        return size
     try:
         proc = subprocess.run(
             ["pdfinfo", "-f", "1", "-l", "1", str(path)],

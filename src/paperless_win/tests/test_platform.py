@@ -175,3 +175,34 @@ def test_find_binary_trusts_path_when_dirs_already_on_it(
     monkeypatch.setenv("PATH", str(tools))
     monkeypatch.setattr(shutil, "which", lambda name, **kwargs: None)
     assert platform.find_binary("tesseract") is None
+
+
+class TestGpg:
+    def test_gpg_dirs_found_in_default_locations(
+        self,
+        fake_windows: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        pf = tmp_path / "pf86"
+        gpg_bin = pf / "GnuPG" / "bin"
+        touch(gpg_bin / "gpg.exe")
+        monkeypatch.setenv("PROGRAMFILES(X86)", str(pf))
+        monkeypatch.delenv("PROGRAMFILES", raising=False)
+        monkeypatch.delenv("LOCALAPPDATA", raising=False)
+        assert platform.gpg_dirs() == [gpg_bin]
+        assert platform.find_binary("gpg") == str(gpg_bin / "gpg.exe")
+
+    def test_missing_gpg_is_not_an_error(
+        self,
+        fake_windows: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        for key in ("PROGRAMFILES(X86)", "PROGRAMFILES", "LOCALAPPDATA"):
+            monkeypatch.delenv(key, raising=False)
+        assert platform.gpg_dirs() == []
+        assert platform.find_binary("gpg") is None
+
+    def test_linux_has_no_gpg_dirs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(platform, "IS_WINDOWS", False)
+        assert platform.gpg_dirs() == []

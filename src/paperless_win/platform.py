@@ -145,6 +145,32 @@ def bin_dirs() -> list[Path]:
     return found
 
 
+def gpg_dirs() -> list[Path]:
+    """Folders of a user-installed Gpg4win / GnuPG for Windows that exist on this machine.
+
+    gpg is optional (mail decryption only) and is not bundled, so we only look in the
+    installers' default locations. Git for Windows' own msys gpg is deliberately ignored:
+    it expects POSIX paths and cannot use a Windows ``GNUPGHOME``.
+    """
+    if not IS_WINDOWS:
+        return []
+    roots = [
+        os.environ.get("PROGRAMFILES(X86)"),
+        os.environ.get("PROGRAMFILES"),
+        os.environ.get("LOCALAPPDATA")
+        and str(Path(os.environ["LOCALAPPDATA"]) / "Programs"),
+    ]
+    found: list[Path] = []
+    for root in roots:
+        if not root:
+            continue
+        for sub in ("GnuPG/bin", "Gpg4win/bin", "GnuPG/bin_64"):
+            candidate = Path(root) / sub
+            if (candidate / "gpg.exe").is_file() and candidate not in found:
+                found.append(candidate)
+    return found
+
+
 def _candidate_names(name: str) -> tuple[str, ...]:
     """Names to try via ``shutil.which``: the bare name first (which adds PATHEXT)."""
     return (name, *_WINDOWS_NAMES.get(name, ()))
@@ -182,7 +208,7 @@ def find_binary(name: str) -> str | None:
             return found
 
     on_path = {p.lower() for p in os.environ.get("PATH", "").split(os.pathsep) if p}
-    for directory in bin_dirs():
+    for directory in [*bin_dirs(), *gpg_dirs()]:
         if str(directory).lower() in on_path:
             continue
         for candidate in names:
