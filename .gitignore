@@ -115,3 +115,7 @@ celerybeat-schedule*
 
 # Git worktree local folder
 .worktrees
+
+# winport: dev tools and spike scratch dirs (P01)
+.tools/
+.spike/

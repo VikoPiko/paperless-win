@@ -11,3 +11,4 @@ Keep this list short. Before adding a row, ask: can this be a hook into
 |---|---|---|---|
 | `README.md` | P0 | Unofficial-port notice at the top | No (fork-specific) |
 | `pyproject.toml` | P0 | Add `src/paperless_win/tests` to pytest `testpaths` | No (fork-specific) |
+| `.gitignore` | P1 | Ignore `.tools/` (bootstrap downloads) and `.spike/` (spike data) | No (fork-specific) |
