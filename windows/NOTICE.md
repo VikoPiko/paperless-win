@@ -37,3 +37,10 @@ in the `licenses` folder of the installation, and the installer's licence page l
   `windows/PLAN.md` (for example, no `unpaper` and no Gotenberg).
 
 The exact difference to upstream is always available with `git diff v3.5.1..` in the source repository.
+
+## How it was made
+
+The modifications were written by Claude Code (Anthropic's AI coding assistant) working under the direction
+of the repository owner, who set the goals and rules (`CLAUDE.md`, `windows/PLAN.md`). The code is tested
+(see `windows/SKIPPED_TESTS.md` for what is not) but has not had an independent security audit. As with all
+GPL software, there is no warranty: keep backups.

@@ -38,9 +38,25 @@ Needs Windows 10/11 (64 bit), about 2 GB of disk space and 1.5 GB of memory whil
 | Network consume folders | Polled every 10 s; the service must run as a user that can open the share.                                                                                                                          |
 | Scale                   | One computer.                                                                                                                                                                                       |
 
-## License
+## How this port was made
 
-GPL-3.0, like paperless-ngx: see [`LICENSE`](LICENSE). Programs bundled in the installer have their own licences, listed in [`windows/THIRD_PARTY.md`](windows/THIRD_PARTY.md).
+paperless-win is a **derivative work**: the application is [paperless-ngx](https://github.com/paperless-ngx/paperless-ngx), written by the paperless-ngx contributors (building on [Paperless-ng](https://github.com/jonaswinkler/paperless-ng) and the original [Paperless](https://github.com/the-paperless-project/paperless)). All credit for the application belongs to them. This fork adds only what is needed to run it on Windows, and it is rebuilt on every upstream release.
+
+- **Base:** upstream release **v3.5.1** (the modifications start on 21 November 2026). A version is named `X.Y.Z-win.N` after the upstream version it is built on.
+- **Method:** the port was planned and written in phases (feasibility spike, platform layer, file paths, external tools, consumer, supervisor, Windows service, installer, CI and release, documentation; see [`windows/PLAN.md`](windows/PLAN.md)) by **[Claude Code](https://claude.com/claude-code)**, Anthropic's AI coding assistant, working under the direction of the repository owner ([VikoPiko](https://github.com/VikoPiko)), who set the goals and the rules in [`CLAUDE.md`](CLAUDE.md). Treat it like any young software written largely by an AI: it has been tested (the upstream test suite runs on Windows with the skips listed in [`windows/SKIPPED_TESTS.md`](windows/SKIPPED_TESTS.md); install, upgrade and service tests run in CI), but it has not had an independent security audit and has not been tried on a clean machine by a second person. **Keep backups of your documents and of the data folder.**
+- **A thin layer on top of upstream:** new code lives in [`src/paperless_win/`](src/paperless_win/) (supervisor, service integration, `paperless-ctl`) and [`windows/`](windows/) (installer, build scripts, tests, documentation). The few edits inside upstream files are each marked `winport:` in the source and listed with their reason in [`windows/PATCHES.md`](windows/PATCHES.md); the full difference is `git diff v3.5.1..`. See [`windows/NOTICE.md`](windows/NOTICE.md).
+- **Following upstream:** a weekly workflow reads only the public list of upstream release tags (anonymously) and opens an issue in _this_ repository when a new one appears. Nothing is ever sent to the upstream project; see [`windows/UPSTREAM-SYNC.md`](windows/UPSTREAM-SYNC.md).
+
+If something works in paperless-ngx but not here, it is probably a problem of this port: report it in the [issues of this repository](https://github.com/VikoPiko/paperless-win/issues), and never to the paperless-ngx project.
+
+## Legal
+
+- **Licence.** paperless-ngx is free software under the **GNU General Public License v3.0**. paperless-win is a modified version of it and is distributed under the same licence, with the upstream copyright notices kept: see [`LICENSE`](LICENSE). You may use, study, change and redistribute it under those terms.
+- **No warranty.** As the GPL says, the software is provided "as is", without warranty of any kind. The authors are not liable for loss of data or any other damage.
+- **Bundled programs.** The installer contains programs from other projects under their own licences, among them Ghostscript (AGPL-3.0), Tesseract (Apache-2.0), Poppler (GPL), Microsoft Garnet (MIT) and Python. Each one is listed with its licence, version and the address of its source code in [`windows/THIRD_PARTY.md`](windows/THIRD_PARTY.md); the licence texts are in [`windows/licenses/`](windows/licenses/) and in the installation, and the installer's licence page lists every component. The source code of all of them is available from the addresses given there.
+- **Names.** "paperless-ngx" and its logo belong to the paperless-ngx project; they are used here only to say what this software is based on. This project is not affiliated with, sponsored or endorsed by that project, and is named "paperless-win" to avoid any suggestion that it is. Windows, Microsoft Edge, Word, Excel and PowerPoint are trademarks of Microsoft; LibreOffice is a trademark of The Document Foundation; Claude is a trademark of Anthropic. They are named only to describe what works with this software.
+- **Your data.** Documents stay on your computer. The software connects to other services only if you configure it to (for example an online AI service, or e-mail accounts for mail rules). The installer is not code-signed yet, and the web interface is plain HTTP: keep it on your own computer or network, or put a reverse proxy in front of it.
+- **Security issues** in this port: please use the [issues](https://github.com/VikoPiko/paperless-win/issues) of this repository. Security issues in paperless-ngx itself follow upstream's own policy.
 
 <!-- /winport -->
 
