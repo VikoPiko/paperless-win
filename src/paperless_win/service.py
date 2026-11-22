@@ -18,6 +18,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -173,6 +174,24 @@ def find_winsw(layout: Layout) -> Path | None:
 
 
 # -- the WinSW configuration -------------------------------------------------------------------
+def stop_script_path(layout: Layout) -> Path:
+    return layout.service_dir / "paperless-win-stop.cmd"
+
+
+def stop_script(layout: Layout) -> str:
+    """The stop executable: ``paperless-ctl stop --force``, its output appended to stop.log."""
+    log = layout.log_dir / "service" / "stop.log"
+    lines = [
+        "@echo off",
+        "rem Written by 'paperless-ctl service install'. WinSW appends the arguments of the service",
+        "rem to this script's arguments; they are not used.",
+        f'cd /d "{layout.src_dir}"',
+        f'"{layout.python}" -m paperless_win stop --timeout {STOP_COMMAND_TIMEOUT_SECONDS} --force >> "{log}" 2>&1',
+        "",
+    ]
+    return "\r\n".join(lines)
+
+
 def render_xml(
     layout: Layout,
     account: Account | None = None,
@@ -195,13 +214,13 @@ def render_xml(
     add("executable", str(layout.python))
     add("arguments", "-m paperless_win run")
     add("workingdirectory", str(layout.src_dir))
-    # Stop by asking the supervisor, which drains workers and stops children in order. WinSW
-    # waits `stoptimeout` for the main process to exit, then kills what is left.
-    add("stopexecutable", str(layout.python))
-    add(
-        "stoparguments",
-        f"-m paperless_win stop --timeout {STOP_COMMAND_TIMEOUT_SECONDS}",
-    )
+    # Stop by asking the supervisor, which drains workers and stops children in order. WinSW 2.x
+    # appends the <arguments> of the service to the arguments of the stop executable and waits for
+    # the main process for ever once a stop executable has run (`stoptimeout` is not applied). So
+    # the stop executable is a batch file, which ignores the extra arguments and writes the output
+    # that WinSW would throw away to stop.log, and `stop --force` kills the supervisor's tree when it
+    # does not exit in time.
+    add("stopexecutable", str(stop_script_path(layout)))
     add("stoptimeout", f"{STOP_TIMEOUT_SECONDS} sec")
     add("startmode", "Automatic")
     if delayed_start:
@@ -219,6 +238,8 @@ def render_xml(
     add("env", name="PAPERLESS_CONFIGURATION_PATH", value=str(layout.conf_path))
     add("env", name="PAPERLESS_WIN_APP_DIR", value=str(layout.app_dir))
     add("env", name="PYTHONUTF8", value="1")
+    # the stop command is not started in the working directory of the service
+    add("env", name="PYTHONPATH", value=str(layout.src_dir))
     if os.environ.get("PAPERLESS_WIN_DATA_ROOT"):
         add(
             "env",
@@ -346,16 +367,22 @@ def run(
     *,
     cwd: Path | None = None,
     check: bool = True,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess:
-    result = subprocess.run(
-        list(argv),
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            list(argv),
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as error:
+        msg = f"{' '.join(str(a) for a in argv)} did not finish within {timeout:.0f} s"
+        raise ServiceError(msg) from error
     if check and result.returncode != 0:
         detail = (result.stdout + result.stderr).strip()
         msg = f"{' '.join(str(a) for a in argv)} failed ({result.returncode}): {detail[-400:]}"
@@ -368,11 +395,54 @@ def winsw(
     command: str,
     *extra: str,
     check: bool = True,
+    timeout: float | None = 300,
 ) -> subprocess.CompletedProcess:
     if not layout.exe.is_file():
         msg = f"{layout.exe} not found (the installer puts WinSW there; in a dev checkout run bootstrap-dev.ps1)"
         raise ServiceError(msg)
-    return run([str(layout.exe), command, *extra], cwd=layout.service_dir, check=check)
+    return run(
+        [str(layout.exe), command, *extra],
+        cwd=layout.service_dir,
+        check=check,
+        timeout=timeout,
+    )
+
+
+def wait_for_state(state: str, timeout: float) -> bool:
+    """Wait until the service is in ``state`` (``RUNNING``, ``STOPPED``). False after ``timeout`` seconds."""
+    deadline = time.monotonic() + timeout
+    while True:
+        if service_state() == state:
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.5)
+
+
+def stop(layout: Layout, timeout: float = 120) -> None:
+    """Stop the service and wait for it to be stopped.
+
+    WinSW's own ``stopwait`` loops for as long as the service is not stopped, so a stuck service
+    would block the caller for ever: ask with ``stop`` and look at the state ourselves.
+    """
+    if service_state() in (None, "STOPPED"):
+        return
+    winsw(layout, "stop", check=False, timeout=60)
+    if not wait_for_state("STOPPED", timeout):
+        msg = (
+            f"The service did not stop within {timeout:.0f} s (state: {service_state()}). "
+            f"Look at the logs in {layout.service_dir}."
+        )
+        raise ServiceError(msg)
+
+
+def restart(layout: Layout, timeout: float = 120) -> None:
+    """Stop the service (if it runs), start it again and wait until it runs."""
+    stop(layout, timeout)
+    winsw(layout, "start", timeout=60)
+    if not wait_for_state("RUNNING", timeout):
+        msg = f"The service did not start within {timeout:.0f} s (state: {service_state()})."
+        raise ServiceError(msg)
 
 
 def service_state() -> str | None:
@@ -444,6 +514,11 @@ def install(
     layout.data_root.mkdir(parents=True, exist_ok=True)
     (layout.log_dir / "service").mkdir(parents=True, exist_ok=True)
     write_xml(layout, account)
+    stop_script_path(layout).write_text(
+        stop_script(layout),
+        encoding="utf-8",
+        newline="",
+    )
     try:
         winsw(layout, "install")
     finally:
@@ -462,8 +537,10 @@ def uninstall(layout: Layout) -> None:
         raise ServiceError(ERROR_NOT_ADMIN)
     if service_state() is None:
         return
-    if service_state() != "STOPPED":
-        winsw(layout, "stopwait", check=False)
+    try:
+        stop(layout)
+    except ServiceError:
+        pass  # a stuck service is marked for deletion by the uninstall below
     winsw(layout, "uninstall")
 
 

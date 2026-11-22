@@ -402,9 +402,11 @@ begin
   end;
 end;
 
+// Waits for the web interface. When it does not answer, the install log gets what is needed to see why.
 procedure WaitForWebInterface;
 var
   I, Code: Integer;
+  ServiceLogs: String;
 begin
   WizardForm.StatusLabel.Caption := 'Waiting for paperless-win to start...';
   for I := 1 to 45 do
@@ -414,6 +416,13 @@ begin
             '', SW_HIDE, ewWaitUntilTerminated, Code) and (Code = 0) then Exit;
     Sleep(2000);
   end;
+  SaveStringToFile(InstallLog, 'The web interface did not answer within 90 s.' + #13#10, True);
+  RunLogged(ExpandConstant('{sys}\sc.exe'), 'queryex paperless-win', 'State of the service');
+  ServiceLogs := GetDataDir('') + '\logs\service';
+  RunLogged(ExpandConstant('{cmd}'), '/C "type "' + ServiceLogs + '\paperless-win-service.wrapper.log" & type "' + ServiceLogs + '\paperless-win-service.err.log""',
+            'Logs of the service');
+  Tell('paperless-win was installed, but its web interface did not answer within 90 seconds.' + #13#10 +
+       'Details are in ' + InstallLog + '.', mbError);
 end;
 
 procedure SetUpApplication;
@@ -432,9 +441,15 @@ begin
                     'Creating the Python environment...');
   if Code <> 0 then Fail('creating the Python environment');
   Code := RunLogged(App + '\uv.exe',
-                    'pip install --python "' + VenvPython + '" --no-index --find-links "' + App + '\wheelhouse\base" --no-cache --no-deps -r "' + App + '\requirements.txt"',
+                    'pip install --python "' + VenvPython + '" --no-index --find-links "' + App + '\wheelhouse\base" --no-cache --link-mode copy --no-deps -r "' + App + '\requirements.txt"',
                     'Installing paperless-win (this takes a minute)...');
   if Code <> 0 then Fail('installing the Python packages');
+  // Every file below the app folder gets the permissions of its folder again. The service account must
+  // read the venv; a file that kept the permissions of the place it was made in (a user's temp folder)
+  // is not readable by it ("Permission denied" when the service starts).
+  Code := RunLogged(ExpandConstant('{sys}\icacls.exe'), '"' + App + '" /reset /T /C /Q',
+                    'Setting the permissions of the program files...');
+  if Code <> 0 then Fail('setting the permissions of the program files');
 
   // 2. OCR languages, configuration
   CopySelectedLanguages;
@@ -448,7 +463,7 @@ begin
   if WizardIsTaskSelected('ailocal') then
   begin
     Code := RunLogged(App + '\uv.exe',
-                      'pip install --python "' + VenvPython + '" --no-cache --require-hashes --no-deps -r "' + App + '\requirements-ai-local.txt"',
+                      'pip install --python "' + VenvPython + '" --no-cache --link-mode copy --require-hashes --no-deps -r "' + App + '\requirements-ai-local.txt"',
                       'Downloading the Local AI add-on (about 600 MB)...');
     if Code <> 0 then
       Tell('The Local AI add-on could not be installed (no internet access?). paperless-win works without it; run the installer again to retry.' + #13#10 +

@@ -1,4 +1,7 @@
 name: winport CI
+# The Linux backend tests, the frontend tests, lint and static analysis are upstream's own workflows
+# (ci-backend.yml, ci-frontend.yml, ci-lint.yml, ci-static-analysis.yml); they run on this fork too and
+# prove that Linux still works. This file adds what only the fork needs.
 on:
   push:
     branches:
@@ -14,9 +17,11 @@ concurrency:
   cancel-in-progress: true
 permissions:
   contents: read
+env:
+  PYTHONUTF8: '1'
 jobs:
   check-patches:
-    name: Patch inventory
+    name: Patch inventory and third-party list
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -29,10 +34,15 @@ jobs:
           python-version: "3.13"
       - name: Check PATCHES.md matches winport markers
         run: python windows/scripts/check_patches.py
-  windows-import:
-    name: Windows import smoke
+      - name: Check THIRD_PARTY.md matches the build manifest
+        run: python windows/build/make-third-party.py --check
+  windows-tests:
+    name: Windows tests
     runs-on: windows-latest
+    timeout-minutes: 60
     steps:
+      - name: Git line endings
+        run: git config --global core.autocrlf false
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -41,10 +51,112 @@ jobs:
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           python-version: "3.13"
-      # TODO(P1/P2): run `uv sync` here. It currently fails on Windows because
-      # [tool.uv] `environments` in pyproject.toml only lists linux/macOS, so the
-      # lockfile has no Windows resolution. See windows/tasks/00-fork-setup.md Findings.
-      - name: Import paperless_win (no project sync yet)
+          enable-cache: true
+      - name: Cache the tools
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tools
+          key: tools-${{ runner.os }}-${{ hashFiles('windows/build/manifest.json', 'windows/scripts/bootstrap-dev.ps1') }}
+      - name: Install Tesseract, Ghostscript, Poppler, pngquant, Garnet, libmagic
+        shell: pwsh
+        run: windows/scripts/bootstrap-dev.ps1 -SkipNode
+      - name: Install the Python dependencies
+        run: uv sync --frozen --extra webserver --extra postgres --extra ai-local
+      - name: Run the tests (with windows/skipped_tests.toml applied)
+        shell: pwsh
+        run: windows/scripts/run-tests.ps1 -Junit "$env:RUNNER_TEMP\junit-windows.xml"
+      - name: Summarise failures
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path "$env:RUNNER_TEMP\junit-windows.xml") {
+            python windows/scripts/summarize_failures.py "$env:RUNNER_TEMP\junit-windows.xml" --markdown >> $env:GITHUB_STEP_SUMMARY
+          }
+      - name: Upload the JUnit report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: junit-windows
+          path: ${{ runner.temp }}/junit-windows.xml
+          if-no-files-found: ignore
+  windows-smoke:
+    name: Windows smoke (init, run, upload a document)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      # a throw-away instance on the runner: nothing here is a secret
+      PAPERLESS_DATA_DIR: ${{ github.workspace }}\..\paperless\data
+      PAPERLESS_MEDIA_ROOT: ${{ github.workspace }}\..\paperless\media
+      PAPERLESS_CONSUMPTION_DIR: ${{ github.workspace }}\..\paperless\consume
+      PAPERLESS_SECRET_KEY: ci-only-secret-key-for-the-throw-away-smoke-test-instance
+      PAPERLESS_ADMIN_USER: admin
+      PAPERLESS_ADMIN_PASSWORD: ci-smoke-password-1
+      PAPERLESS_PORT: '8000'
+    steps:
+      - name: Git line endings
+        run: git config --global core.autocrlf false
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Cache the tools
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tools
+          key: tools-${{ runner.os }}-${{ hashFiles('windows/build/manifest.json', 'windows/scripts/bootstrap-dev.ps1') }}
+      - name: Install Tesseract, Ghostscript, Poppler, pngquant, Garnet, libmagic
+        shell: pwsh
+        run: windows/scripts/bootstrap-dev.ps1 -SkipNode
+      - name: "Install the Python dependencies (the base install, no Local AI add-on)"
+        run: uv sync --frozen --no-dev --extra webserver
+      - name: Initialise a new data folder
+        shell: pwsh
         env:
           PYTHONPATH: src
-        run: uv run --no-project --python 3.13 python -c "import paperless_win, paperless_win.platform; print(paperless_win.__version__)"
+        run: .venv\Scripts\python.exe -m paperless_win init
+      - name: Start the stack and run the smoke test
+        shell: pwsh
+        run: windows/scripts/smoke.ps1 -StartStack
+      - name: Show the stack logs
+        if: failure()
+        shell: pwsh
+        run: |
+          foreach ($f in 'supervisor.log', 'web.log', 'worker1.log', 'consumer.log', 'paperless.log') {
+            $p = Join-Path "$env:PAPERLESS_DATA_DIR\log" $f
+            if (Test-Path $p) { "::group::$f"; Get-Content $p -Tail 80; '::endgroup::' }
+          }
+          Get-ChildItem "$env:TEMP\paperless-ctl-smoke.*.log" -ErrorAction SilentlyContinue | ForEach-Object { "::group::$($_.Name)"; Get-Content $_ -Tail 80; '::endgroup::' }
+  windows-service:
+    name: Windows service (WinSW, runner is an administrator)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Git line endings
+        run: git config --global core.autocrlf false
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Cache the tools
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tools
+          key: tools-${{ runner.os }}-${{ hashFiles('windows/build/manifest.json', 'windows/scripts/bootstrap-dev.ps1') }}
+      - name: Install Tesseract, Ghostscript, Poppler, pngquant, Garnet, libmagic, WinSW
+        shell: pwsh
+        run: windows/scripts/bootstrap-dev.ps1 -SkipNode
+      - name: Install the Python dependencies
+        run: uv sync --frozen --no-dev --extra webserver
+      - name: Service integration test
+        shell: pwsh
+        run: windows/scripts/test-service.ps1

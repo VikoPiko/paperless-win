@@ -33,7 +33,7 @@
 
 ## Acceptance criteria
 
-- [ ] Clean Windows 11 VM (no Python, no tools): installer → browser opens → login works → `smoke.ps1` passes. _Not done: needs a VM and an administrator; silent non-admin install + smoke passed on the development machine (see Findings)._
+- [ ] Clean Windows 11 VM (no Python, no tools): installer → browser opens → login works → `smoke.ps1` passes. _Partly covered: a fresh GitHub runner installs it silently as administrator with the service and `smoke.ps1` passes (`winport-release.yml`, P11). Not a clean VM (the runner image has Python and other tools, and `PATH` is searched first), and the browser page and wizard were not exercised._
 - [x] Upgrade from the previous build keeps the documents and settings, and migrations run (tested with the same version over itself; migrations run in `init`, a newer schema was not available to test).
 - [x] Uninstall with "keep data", then reinstall: the existing library is picked up.
 - [x] The base installer size is recorded in Findings (314 MB).
@@ -77,8 +77,9 @@
 
 ### Not verified (cannot be done here)
 
-- A clean Windows 11 VM: all runs were on this development machine, which has Python, Tesseract etc. installed (`find_binary` resolved tesseract, gs and pngquant to the bundled `appin` copies, but `pdftoppm` to a Poppler from the WinGet folder on this machine's `PATH`: `PATH` is searched before `appin`, so a user-installed tool wins; a clean VM is needed to prove the bundled set is complete).
-- Installing the Windows service from the installer (administrator rights and UAC needed): the code path (`service install --force --start`, firewall rule) is the P9 code, tested only up to the XML/ACL/command rendering. Needs an elevated run of `windows\scripts\test-service.ps1` and one installer run as administrator.
+- A clean Windows 11 VM: all runs were on this development machine, which has Python, Tesseract etc. installed (`find_binary` resolved tesseract, gs and pngquant to the bundled `app\bin` copies, but `pdftoppm` to a Poppler from the WinGet folder on this machine's `PATH`: `PATH` is searched before `app\bin`, so a user-installed tool wins; a clean VM is needed to prove the bundled set is complete).
+- ~~Installing the Windows service from the installer~~ **now verified in CI (P11)**: on a GitHub `windows-latest` runner (an administrator) the installer built by `winport-release.yml` installs silently with the service, the service runs, `smoke.ps1` passes against it, and the uninstaller removes the service and keeps the data (`C:\paperless-data\db.sqlite3` stays). That run found a real bug the local tests could not: **the virtual service account got `PermissionError` reading a file in the venv and the service stopped at once.** The installer now installs with `uv pip install --link-mode copy` and runs `icacls "<app>" /reset /T` after the venv exists, so every file takes the permissions of its folder (39 885 files, about a minute). Not yet proven: the same on a real clean machine, and a reboot.
+- The firewall rule from the installer (`/TASKS=firewall`) was not part of that run.
 - The final page's "Open paperless-win in the browser" box (skipped in silent mode) and the wizard pages themselves (all runs were silent).
 - Silent install with `/ADMINUSER` and `/ADMINPASSWORD` puts the password on the command line, as any silent installer parameter does; use the wizard when that matters.
 - `smoke.ps1 -StartStack -Python <other env>` still sets `PYTHONPATH` to the repo's `src`, so it tests the repo code with that environment: the installed app was started with its own `paperless-ctl.cmd run` and smoke-tested without `-StartStack`.

@@ -8,7 +8,7 @@
                 windows\build\manifest.json)
   2. frontend   pnpm install --frozen-lockfile, production build of the Angular app
   3. python     the standalone CPython, plus a wheelhouse of every dependency from uv.lock
-                (`uv export` + `pip download`, with hashes: the build fails if a wheel changes)
+                (`uv export` + `pip wheel`, with hashes: the build fails if a wheel changes)
   4. stage      dist\stage\app\  = python, src, bin\<tool>, service, wheelhouse, uv, licences
   5. hash list  dist\app-hashes-<version>.txt: path and SHA-256 of every staged file. Two builds of
                 the same commit must produce identical lists (timestamps are not compared).

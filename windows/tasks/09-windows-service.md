@@ -30,29 +30,37 @@ paperless-win runs as a proper Windows service that starts at boot, stops cleanl
 
 ## Acceptance criteria
 
-- [ ] `test-service.ps1` passes.
+- [x] `test-service.ps1` passes (in CI on an administrator runner; see Findings).
 - [ ] The service survives a reboot (verified manually once, results in Findings).
-- [ ] No files under ProgramData are writable by non-admin users except the consume folder.
+- [x] No files under ProgramData are writable by non-admin users except the consume folder (audited by the script, passes in CI).
 
 ## Findings
 
-**Status: implemented and unit-tested; the three acceptance criteria are NOT yet verified, because they need an elevated prompt and this session is not elevated (`IsInRole(Administrator)` is False). Someone with admin rights must run `windows\scripts\test-service.ps1` and do the reboot check.**
+**Status: implemented, unit-tested, and `test-service.ps1` now passes for real in CI (job "Windows service" of `winport-ci.yml`, a GitHub `windows-latest` runner, which is an administrator). That run found three bugs (below), all fixed. Still open: the reboot check (the service comes up by itself after a restart of the machine), which no CI runner can do, and a run from the installed layout (P10) with the same virtual account on a real machine.**
 
 What exists:
 
 - `src/paperless_win/service.py` and `paperless-ctl service install|uninstall|start|stop|restart|status|set-account|acl|firewall|xml` (`windows/SERVICE.md` is the user-facing description). WinSW **2.12.0** (v2.13.0 calls itself experimental), SHA256 pinned in `bootstrap-dev.ps1` and `THIRD_PARTY.md`; the exe is not code-signed.
-- The service XML runs `python -m paperless_win run`, stops with `stopexecutable` = `paperless-ctl stop --timeout 25` (the supervisor's own protocol, instead of relying on Ctrl+C reaching the process), `stoptimeout` 30 s, Automatic (delayed) start, restart after 10/30/60 s, WinSW logs rolled by size under `<logs>\service`, `PAPERLESS_CONFIGURATION_PATH`, virtual account `NT SERVICE\paperless-win`.
+- The service XML runs `python -m paperless_win run`, stops with `stopexecutable` = a batch file that runs `paperless-ctl stop --timeout 25 --force` and writes `<logs>\service\stop.log` (the supervisor's own protocol, instead of relying on Ctrl+C reaching the process; see the CI finding below for why it is a batch file), `stoptimeout` 30 s, Automatic (delayed) start, restart after 10/30/60 s, WinSW logs rolled by size under `<logs>\service`, `PAPERLESS_CONFIGURATION_PATH`, virtual account `NT SERVICE\paperless-win`.
 - ACLs through `icacls`, using SIDs (the virtual account's SID is computed from the name and was checked against `sc showsid` for two service names, so permissions can be set before the service exists): the data root loses inheritance and keeps SYSTEM, Administrators and the service account only; consume additionally gets Modify for Users; folders outside the root only get Modify for the service account; the app folder gets read and execute for the service account.
 - `set-account` re-registers the service under a local or domain user (for NAS shares). The password sits in the XML only while WinSW registers (the file is restricted to SYSTEM and Administrators first), then is removed.
 - Firewall rule for the web port on **private and domain** networks only, opt-in (`service firewall allow`, `service install --firewall`).
 - Supervisor: a taken broker port is now reported in plain words even when another server answers PING; `paperless-ctl` reports an unreadable configuration as "the configuration is invalid: ..." with exit code 4.
-- `windows/scripts/test-service.ps1` follows the task's steps 2 and 3 (install, smoke, process owner, permissions audit, restart, stop and "no process left", port taken, invalid configuration, uninstall and "data kept"). It uses its own data root (`PAPERLESS_WIN_DATA_ROOT`, new) and ports and refuses to touch an existing `paperless-win` service. **It has never been run.** It parses, and it exits with code 2 when not elevated. The database-locked case of step 3 is not automated.
+- `windows/scripts/test-service.ps1` follows the task's steps 2 and 3 (install, smoke, process owner, permissions audit, restart, stop and "no process left", port taken, invalid configuration, uninstall and "data kept"). It uses its own data root (`PAPERLESS_WIN_DATA_ROOT`, new) and ports and refuses to touch an existing `paperless-win` service. It cannot run in this (non-elevated) development session; it runs in CI (see "Found by the first elevated run"). The database-locked case of step 3 is not automated.
 
 What was verified here, without elevation:
 
 - 31 unit tests (`tests/test_service.py`) for the XML, account parsing, the ACL plan, firewall commands and layout detection; the fork suite is 353 passed.
 - WinSW itself: `paperless-win-service.exe status` accepts the generated XML (reports `NonExistent`).
-- Not verified: install/start/stop through the Service Control Manager, the virtual account, ACL results on disk, the Event Log, `set-account`, the firewall rule, the reboot.
+- Not verified in this session: anything that needs elevation (that is what the CI job is for).
+
+Found by the first elevated run (GitHub Actions, `windows-latest`, checkout at `D:\a\...`, account `virtual`):
+
+- **Verified for real:** `init` and `service install --start`; the service starts automatically; the web UI answers 8 s after the start; every stack process runs as `paperless-win`; `smoke.ps1` passes against the service, and again after a restart; no path below the data root is writable except by SYSTEM, Administrators, the service account (and Users in `consume`); Users have no access to the data root; stop takes 5.8 s and leaves no process; a taken broker port and an invalid configuration are reported in plain words; uninstall removes the service and the firewall rule and keeps data and configuration. A virtual account **can** run a checkout that is not below `C:\Users` (it ran from `D:\a\...`).
+- **Bug: WinSW 2.12.0 has no `restartwait`**, and its `stopwait` loops for ever when the service never reaches "stopped". `service stop/restart` now ask with `stop`/`start`, then wait for the state with a timeout, and every WinSW call has a timeout (`service.stop`, `service.restart`, `service.wait_for_state`).
+- **Bug: the service could never be stopped (stuck in STOP_PENDING).** WinSW 2.x _appends the service's `<arguments>` to the stop executable's arguments_: our stop command ran as `... stop --timeout 25 -m paperless_win run` and failed with `unrecognized arguments`, so the supervisor was never asked to stop, and with a stop executable WinSW 2.x then waits for the main process for ever (`stoptimeout` is not applied). The output of a stop executable is thrown away too, so this was invisible until the command was redirected to a file. Now: the stop executable is `paperless-win-stop.cmd` (written by `service install`; it ignores extra arguments), it writes `<logs>\service\stop.log`, and `paperless-ctl stop --force` kills the supervisor's process tree if it does not exit within the timeout, so the service can never stay "stopping".
+- **Test bug:** the permission audit counted `OWNER RIGHTS` (the owner-only ACL Python gives `tempfile.mkdtemp` folders) as a stranger; it is the service account itself.
+- The service environment now also sets `PYTHONPATH` to the app's `src` (the stop command is not started in the service's working directory).
 
 Things found on the way:
 

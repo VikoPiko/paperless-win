@@ -109,6 +109,16 @@ function Get-StackProcesses {
     }
 }
 function Get-ServiceName { (Get-Service paperless-win -ErrorAction SilentlyContinue).Status }
+function Show-Diagnostics {
+    Write-Host '--- diagnostics ---' -ForegroundColor Yellow
+    sc.exe queryex paperless-win | Out-Host
+    foreach ($f in (Get-ChildItem "$data\logs" -Filter '*.log' -Recurse -ErrorAction SilentlyContinue | Sort-Object FullName)) {
+        Write-Host "::group::$($f.FullName)"
+        Get-Content $f.FullName -Tail 60 -ErrorAction SilentlyContinue | Out-Host
+        Write-Host '::endgroup::'
+    }
+    Get-StackProcesses | Select-Object ProcessId, Name | Format-Table | Out-Host
+}
 
 try {
     # --- 1. init + install -------------------------------------------------------------------------------------------------
@@ -134,7 +144,9 @@ try {
     # --- 3. permissions ----------------------------------------------------------------------------------------------------
     Write-Host '3. folder permissions'
     $svcSid = if ($Account -eq 'system') { 'S-1-5-18' } else { (& sc.exe showsid paperless-win | Select-String 'SERVICE SID').ToString().Split(':')[1].Trim() }
-    $allowedWriters = @('S-1-5-18', 'S-1-5-32-544', $svcSid)
+    # S-1-3-4 (OWNER RIGHTS) is whoever owns the file: Python gives the scratch folders it creates an owner-only
+    # ACL (mode 0o700), and here the owner is the service account itself
+    $allowedWriters = @('S-1-5-18', 'S-1-5-32-544', $svcSid, 'S-1-3-4')
     $writeRights = [Security.AccessControl.FileSystemRights]'WriteData, AppendData, CreateFiles, CreateDirectories, Delete, DeleteSubdirectoriesAndFiles, ChangePermissions, TakeOwnership'
     $bad = [System.Collections.Generic.List[string]]::new()
     $consume = Join-Path $data 'consume'
@@ -217,6 +229,7 @@ catch {
     $failures.Add("unexpected error: $_")
 }
 finally {
+    if ($failures.Count -gt 0) { Show-Diagnostics }
     if (Get-Service paperless-win -ErrorAction SilentlyContinue) {
         Write-Host 'Cleaning up: removing the test service' -ForegroundColor Yellow
         & $Python -m paperless_win service uninstall 2>&1 | Out-Host

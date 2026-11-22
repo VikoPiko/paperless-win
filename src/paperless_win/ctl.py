@@ -582,6 +582,12 @@ def do_stop(args: argparse.Namespace) -> int:
             return EXIT_OK
         time.sleep(0.5)
     say(f"supervisor {pid} did not exit within {timeout:g} s")
+    if getattr(args, "force", False):
+        # the Windows service must not stay "stopping" for ever: end the whole tree
+        victims = [pid, *jobs.descendants(pid)]
+        jobs.kill_pids(victims)
+        say(f"killed the supervisor and {len(victims) - 1} other process(es)")
+        return EXIT_OK
     return EXIT_FAIL
 
 
@@ -713,11 +719,13 @@ def do_service(args: argparse.Namespace) -> int:
     if action in {"start", "stop", "restart"}:
         if not service.is_admin():
             raise service.ServiceError(service.ERROR_NOT_ADMIN)
-        # WinSW's plain `stop`/`restart` return before the service has changed state
-        service.winsw(
-            layout,
-            {"stop": "stopwait", "restart": "restartwait"}.get(action, action),
-        )
+        # WinSW's own `stop`/`restart` return before the service has changed state: wait for it here
+        if action == "stop":
+            service.stop(layout)
+        elif action == "restart":
+            service.restart(layout)
+        else:
+            service.winsw(layout, "start")
         say(f"Service {action}: done.")
         return EXIT_OK
     if action == "set-account":
@@ -838,6 +846,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=STOP_WAIT_SECONDS,
         help="seconds to wait for the supervisor to exit",
+    )
+    stop.add_argument(
+        "--force",
+        action="store_true",
+        help="kill the supervisor and everything it started if it does not exit in time",
     )
     stop.set_defaults(func=do_stop)
     add_service_commands(sub)
