@@ -17,7 +17,11 @@ from django.conf import settings
 from PIL import Image
 from PIL import ImageSequence
 
+from paperless_win.fs import retry_io  # winport: retry on locked files (P05)
 from paperless_win.pdf import shim_subprocess  # winport: pikepdf instead of qpdf (P04)
+from paperless_win.scripts import (
+    script_arguments,
+)  # winport: .ps1/.bat/.py scripts (P05)
 
 if TYPE_CHECKING:
     from django.db.models import Model
@@ -113,9 +117,11 @@ def copy_file_with_basic_stats(
     source, dest = _coerce_to_path(source, dest)
 
     try:
-        shutil.copy(source, dest)
+        retry_io(
+            lambda: shutil.copy(source, dest),
+        )  # winport: AV may hold the file (P05)
     except PermissionError:
-        shutil.copyfile(source, dest)
+        retry_io(lambda: shutil.copyfile(source, dest))
 
     copy_basic_file_stats(source, dest)
 
@@ -176,6 +182,7 @@ def run_subprocess(
         return shimmed
 
     proc_name = arguments[0]
+    arguments = script_arguments(arguments)  # winport: pick a runner by extension (P05)
 
     completed_proc = run(args=arguments, env=env, capture_output=True, check=False)
 

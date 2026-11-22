@@ -58,7 +58,7 @@ P7/P8 can run in parallel with P5/P6 once P4 is done.
 | P2  | `02-platform-layer.md`      | `paperless_win.platform`: binary lookup, default paths, config search  | Yes            | ☑ done, CI green                 |
 | P3  | `03-paths-filenames.md`     | POSIX-stored paths, Windows-safe filenames, data migration             | Partly         | ☑ done, CI green                 |
 | P4  | `04-external-tools.md`      | pikepdf instead of qpdf/pdfinfo CLIs, poppler/libmagic wiring          | Yes            | ☑ done, CI green                 |
-| P5  | `05-consumer-robustness.md` | File-lock retries, stable-file detection, script dispatch, UNC polling | Yes            | ☐                                |
+| P5  | `05-consumer-robustness.md` | File-lock retries, stable-file detection, script dispatch, UNC polling | Yes            | ☑ done, CI green                 |
 | P6  | `06-runtime-supervisor.md`  | `paperless-ctl` (init/run/check), supervisor, solo workers, watchdog   | Yes            | ☐                                |
 | P7  | `07-ai-optional.md`         | `ai-local` extra; base works without torch                             | No             | ☐                                |
 | P8  | `08-office-docs.md`         | Local LibreOffice converter as Gotenberg alternative                   | Yes            | ☐                                |

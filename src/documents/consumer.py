@@ -64,6 +64,7 @@ from paperless.parsers import ParserContext
 from paperless.parsers import ParserProtocol
 from paperless.parsers.registry import get_parser_registry
 from paperless.parsers.utils import pdf_born_digital_text
+from paperless_win.fs import retry_io  # winport: retry on locked files (P05)
 
 LOGGING_NAME: Final[str] = "paperless.consumer"
 
@@ -775,9 +776,9 @@ class ConsumerPlugin(
                         self.log.debug(
                             f"Deleting original file {self.input_doc.original_file}",
                         )
-                        self.input_doc.original_file.unlink()
+                        retry_io(self.input_doc.original_file.unlink)  # winport (P05)
                         self.log.debug(f"Deleting working copy {self.working_copy}")
-                        self.working_copy.unlink()
+                        retry_io(self.working_copy.unlink)  # winport (P05)
                         if self.unmodified_original is not None:  # pragma: no cover
                             self.log.debug(
                                 f"Deleting unmodified original file {self.unmodified_original}",
@@ -1083,7 +1084,7 @@ class ConsumerPreflightPlugin(
                     or str(duplicate.pk)
                 )
 
-                Path(self.input_doc.original_file).unlink()
+                retry_io(Path(self.input_doc.original_file).unlink)  # winport (P05)
 
                 failure_msg = (
                     f"Not consuming {self.filename}: "

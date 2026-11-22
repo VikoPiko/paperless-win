@@ -30,6 +30,7 @@ from paperless_ai.tables import DocumentChunksTable
 from paperless_ai.tables import DocumentMetaRow
 from paperless_ai.tables import DocumentMetaTable
 from paperless_ai.tables import IndexMetaTable
+from paperless_win.fs import retry_io  # winport: another process may hold the DB (P05)
 
 logger = logging.getLogger("paperless_ai.vector_store")
 
@@ -676,7 +677,7 @@ class PaperlessSqliteVecVectorStore(BasePydanticVectorStore):
             stale = Path(compact_path + suffix)
             if stale.exists():  # pragma: no cover
                 stale.unlink()
-        Path(compact_path).replace(db_path)
+        retry_io(lambda: Path(compact_path).replace(db_path))  # winport (P05)
         self._conn = self._open_connection(db_path)
 
     def _stored_schema_version(self) -> int | None:
