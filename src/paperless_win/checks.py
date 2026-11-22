@@ -9,10 +9,12 @@ from __future__ import annotations
 from typing import Any
 
 from django.conf import settings
+from django.core.checks import Error
 from django.core.checks import Tags
 from django.core.checks import Warning as CheckWarning
 from django.core.checks import register
 
+from paperless_win import ai
 from paperless_win import platform
 
 
@@ -64,3 +66,27 @@ def libmagic_check(app_configs: Any, **kwargs: Any) -> list[CheckWarning]:
             ),
         ]
     return []
+
+
+@register(Tags.compatibility)
+def local_ai_check(app_configs: Any, **kwargs: Any) -> list[Error]:
+    """The huggingface embedding backend needs the optional ``ai-local`` extra (P07).
+
+    Checked on every platform: a base install lacks the packages on Linux as well.
+    Only the environment setting is looked at here. A backend chosen in the web UI is caught
+    when the LLM index is built, which fails with the same text and shows it on the status page.
+    """
+    if not getattr(settings, "AI_ENABLED", False):
+        return []
+    if getattr(settings, "LLM_EMBEDDING_BACKEND", None) != "huggingface":
+        return []
+    missing = ai.missing_modules()
+    if not missing:
+        return []
+    return [
+        Error(
+            ai.MESSAGE,
+            hint=f"Missing Python packages: {', '.join(missing)}.",
+            id="paperless_win.E001",
+        ),
+    ]
