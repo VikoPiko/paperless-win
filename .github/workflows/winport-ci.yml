@@ -83,6 +83,15 @@ jobs:
     name: Windows smoke (init, run, upload a document)
     runs-on: windows-latest
     timeout-minutes: 45
+    env:
+      # a throw-away instance on the runner: nothing here is a secret
+      PAPERLESS_DATA_DIR: ${{ github.workspace }}\..\paperless\data
+      PAPERLESS_MEDIA_ROOT: ${{ github.workspace }}\..\paperless\media
+      PAPERLESS_CONSUMPTION_DIR: ${{ github.workspace }}\..\paperless\consume
+      PAPERLESS_SECRET_KEY: ci-only-secret-key-for-the-throw-away-smoke-test-instance
+      PAPERLESS_ADMIN_USER: admin
+      PAPERLESS_ADMIN_PASSWORD: ci-smoke-password-1
+      PAPERLESS_PORT: '8000'
     steps:
       - name: Git line endings
         run: git config --global core.autocrlf false
@@ -109,36 +118,23 @@ jobs:
         shell: pwsh
         env:
           PYTHONPATH: src
-          PAPERLESS_DATA_DIR: ${{ runner.temp }}\paperless\data
-          PAPERLESS_MEDIA_ROOT: ${{ runner.temp }}\paperless\media
-          PAPERLESS_CONSUMPTION_DIR: ${{ runner.temp }}\paperless\consume
-          PAPERLESS_ADMIN_USER: admin
-          PAPERLESS_ADMIN_PASSWORD: ci-smoke-password-1
-          PAPERLESS_PORT: '8000'
         run: .venv\Scripts\python.exe -m paperless_win init
       - name: Start the stack and run the smoke test
         shell: pwsh
-        env:
-          PAPERLESS_DATA_DIR: ${{ runner.temp }}\paperless\data
-          PAPERLESS_MEDIA_ROOT: ${{ runner.temp }}\paperless\media
-          PAPERLESS_CONSUMPTION_DIR: ${{ runner.temp }}\paperless\consume
-          PAPERLESS_ADMIN_USER: admin
-          PAPERLESS_ADMIN_PASSWORD: ci-smoke-password-1
-          PAPERLESS_PORT: '8000'
         run: windows/scripts/smoke.ps1 -StartStack
       - name: Show the stack logs
         if: failure()
         shell: pwsh
         run: |
           foreach ($f in 'supervisor.log', 'web.log', 'worker1.log', 'consumer.log', 'paperless.log') {
-            $p = Join-Path "$env:RUNNER_TEMP\paperless\data\log" $f
+            $p = Join-Path "$env:PAPERLESS_DATA_DIR\log" $f
             if (Test-Path $p) { "::group::$f"; Get-Content $p -Tail 80; '::endgroup::' }
           }
           Get-ChildItem "$env:TEMP\paperless-ctl-smoke.*.log" -ErrorAction SilentlyContinue | ForEach-Object { "::group::$($_.Name)"; Get-Content $_ -Tail 80; '::endgroup::' }
   windows-service:
     name: Windows service (WinSW, runner is an administrator)
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
       - name: Git line endings
         run: git config --global core.autocrlf false

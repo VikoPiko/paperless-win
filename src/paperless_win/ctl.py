@@ -713,11 +713,13 @@ def do_service(args: argparse.Namespace) -> int:
     if action in {"start", "stop", "restart"}:
         if not service.is_admin():
             raise service.ServiceError(service.ERROR_NOT_ADMIN)
-        # WinSW's plain `stop`/`restart` return before the service has changed state
-        service.winsw(
-            layout,
-            {"stop": "stopwait", "restart": "restartwait"}.get(action, action),
-        )
+        # WinSW's own `stop`/`restart` return before the service has changed state: wait for it here
+        if action == "stop":
+            service.stop(layout)
+        elif action == "restart":
+            service.restart(layout)
+        else:
+            service.winsw(layout, "start")
         say(f"Service {action}: done.")
         return EXIT_OK
     if action == "set-account":

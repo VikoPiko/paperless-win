@@ -316,3 +316,86 @@ def test_data_root_override_reaches_the_service_environment(
         for e in parse(service.render_xml(layout(tmp_path))).findall("env")
     }
     assert "PAPERLESS_WIN_DATA_ROOT" not in env
+
+
+class FakeService:
+    """A service that changes state a while after WinSW was asked to (or never)."""
+
+    def __init__(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        state: str | None,
+        *,
+        obeys: bool = True,
+    ) -> None:
+        self.state = state
+        self.obeys = obeys
+        self.calls: list[str] = []
+        monkeypatch.setattr(service, "service_state", lambda: self.state)
+        monkeypatch.setattr(service, "winsw", self.winsw)
+        monkeypatch.setattr(service.time, "sleep", lambda _seconds: None)
+        clock = iter(range(0, 10_000, 5))
+        monkeypatch.setattr(service.time, "monotonic", lambda: float(next(clock)))
+
+    def winsw(
+        self,
+        _layout: service.Layout,
+        command: str,
+        *_extra: str,
+        **_kw: object,
+    ) -> None:
+        self.calls.append(command)
+        if self.obeys:
+            self.state = {"stop": "STOPPED", "start": "RUNNING"}.get(
+                command,
+                self.state,
+            )
+
+
+def test_stop_asks_for_stop_and_waits_for_the_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeService(monkeypatch, "RUNNING")
+    service.stop(layout(tmp_path))
+    assert fake.calls == ["stop"]  # never the endless `stopwait`
+
+
+def test_stop_does_nothing_for_a_stopped_or_missing_service(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for state in ("STOPPED", None):
+        fake = FakeService(monkeypatch, state)
+        service.stop(layout(tmp_path))
+        assert fake.calls == []
+
+
+def test_a_service_that_does_not_stop_is_reported_instead_of_waited_for(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakeService(monkeypatch, "RUNNING", obeys=False)
+    with pytest.raises(service.ServiceError, match="did not stop within 20 s"):
+        service.stop(layout(tmp_path), timeout=20)
+
+
+def test_restart_stops_then_starts_and_waits_for_running(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeService(monkeypatch, "RUNNING")
+    service.restart(layout(tmp_path))
+    assert fake.calls == ["stop", "start"]
+    assert fake.state == "RUNNING"
+
+
+def test_run_reports_a_command_that_hangs(tmp_path: Path) -> None:
+    import sys
+
+    with pytest.raises(service.ServiceError, match="did not finish within 1 s"):
+        service.run(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            cwd=tmp_path,
+            timeout=1,
+        )

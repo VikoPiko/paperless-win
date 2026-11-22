@@ -18,6 +18,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -346,16 +347,22 @@ def run(
     *,
     cwd: Path | None = None,
     check: bool = True,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess:
-    result = subprocess.run(
-        list(argv),
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            list(argv),
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as error:
+        msg = f"{' '.join(str(a) for a in argv)} did not finish within {timeout:.0f} s"
+        raise ServiceError(msg) from error
     if check and result.returncode != 0:
         detail = (result.stdout + result.stderr).strip()
         msg = f"{' '.join(str(a) for a in argv)} failed ({result.returncode}): {detail[-400:]}"
@@ -368,11 +375,54 @@ def winsw(
     command: str,
     *extra: str,
     check: bool = True,
+    timeout: float | None = 300,
 ) -> subprocess.CompletedProcess:
     if not layout.exe.is_file():
         msg = f"{layout.exe} not found (the installer puts WinSW there; in a dev checkout run bootstrap-dev.ps1)"
         raise ServiceError(msg)
-    return run([str(layout.exe), command, *extra], cwd=layout.service_dir, check=check)
+    return run(
+        [str(layout.exe), command, *extra],
+        cwd=layout.service_dir,
+        check=check,
+        timeout=timeout,
+    )
+
+
+def wait_for_state(state: str, timeout: float) -> bool:
+    """Wait until the service is in ``state`` (``RUNNING``, ``STOPPED``). False after ``timeout`` seconds."""
+    deadline = time.monotonic() + timeout
+    while True:
+        if service_state() == state:
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.5)
+
+
+def stop(layout: Layout, timeout: float = 120) -> None:
+    """Stop the service and wait for it to be stopped.
+
+    WinSW's own ``stopwait`` loops for as long as the service is not stopped, so a stuck service
+    would block the caller for ever: ask with ``stop`` and look at the state ourselves.
+    """
+    if service_state() in (None, "STOPPED"):
+        return
+    winsw(layout, "stop", check=False, timeout=60)
+    if not wait_for_state("STOPPED", timeout):
+        msg = (
+            f"The service did not stop within {timeout:.0f} s (state: {service_state()}). "
+            f"Look at the logs in {layout.service_dir}."
+        )
+        raise ServiceError(msg)
+
+
+def restart(layout: Layout, timeout: float = 120) -> None:
+    """Stop the service (if it runs), start it again and wait until it runs."""
+    stop(layout, timeout)
+    winsw(layout, "start", timeout=60)
+    if not wait_for_state("RUNNING", timeout):
+        msg = f"The service did not start within {timeout:.0f} s (state: {service_state()})."
+        raise ServiceError(msg)
 
 
 def service_state() -> str | None:
@@ -462,8 +512,10 @@ def uninstall(layout: Layout) -> None:
         raise ServiceError(ERROR_NOT_ADMIN)
     if service_state() is None:
         return
-    if service_state() != "STOPPED":
-        winsw(layout, "stopwait", check=False)
+    try:
+        stop(layout)
+    except ServiceError:
+        pass  # a stuck service is marked for deletion by the uninstall below
     winsw(layout, "uninstall")
 
 
