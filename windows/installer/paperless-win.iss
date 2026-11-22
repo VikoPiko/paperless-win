@@ -402,9 +402,11 @@ begin
   end;
 end;
 
+// Waits for the web interface. When it does not answer, the install log gets what is needed to see why.
 procedure WaitForWebInterface;
 var
   I, Code: Integer;
+  ServiceLogs: String;
 begin
   WizardForm.StatusLabel.Caption := 'Waiting for paperless-win to start...';
   for I := 1 to 45 do
@@ -414,6 +416,13 @@ begin
             '', SW_HIDE, ewWaitUntilTerminated, Code) and (Code = 0) then Exit;
     Sleep(2000);
   end;
+  SaveStringToFile(InstallLog, 'The web interface did not answer within 90 s.' + #13#10, True);
+  RunLogged(ExpandConstant('{sys}\sc.exe'), 'queryex paperless-win', 'State of the service');
+  ServiceLogs := GetDataDir('') + '\logs\service';
+  RunLogged(ExpandConstant('{cmd}'), '/C "type "' + ServiceLogs + '\paperless-win-service.wrapper.log" & type "' + ServiceLogs + '\paperless-win-service.err.log""',
+            'Logs of the service');
+  Tell('paperless-win was installed, but its web interface did not answer within 90 seconds.' + #13#10 +
+       'Details are in ' + InstallLog + '.', mbError);
 end;
 
 procedure SetUpApplication;

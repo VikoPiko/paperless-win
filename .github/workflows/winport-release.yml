@@ -140,8 +140,14 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          foreach ($p in 'C:\paperless-data\logs\install.log', 'C:\paperless-data\logs\supervisor.log') {
-            if (Test-Path $p) { "::group::$p"; Get-Content $p -Tail 100; '::endgroup::' }
+          sc.exe queryex paperless-win
+          Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Service Control Manager' } -MaxEvents 15 -ErrorAction SilentlyContinue |
+            ForEach-Object { "$($_.TimeCreated) $($_.Message)" }
+          $logs = @(Get-ChildItem C:\paperless-data\logs -Recurse -Filter *.log -ErrorAction SilentlyContinue | Sort-Object FullName)
+          foreach ($f in $logs) {
+            "::group::$($f.FullName)"
+            Get-Content $f.FullName -Tail $(if ($f.Name -eq 'install.log') { 40 } else { 60 })
+            '::endgroup::'
           }
   release:
     name: Publish the release
