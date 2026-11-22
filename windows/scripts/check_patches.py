@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-# ruff: noqa: T201
+# ruff: noqa: INP001, T201
 """Check that windows/PATCHES.md matches the files carrying `winport:` markers.
 
 Files outside the fork-owned locations that contain the marker must be listed in the

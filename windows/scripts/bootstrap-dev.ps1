@@ -253,10 +253,3 @@ Check 'garnet' { (Get-Item (Join-Path $dirs.Garnet 'GarnetServer.exe')).VersionI
 if (-not $SkipNode) { Check 'node' { node --version }; Check 'pnpm' { pnpm --version } }
 if (-not $ok) { throw 'bootstrap finished with errors' }
 Write-Host "`nDone. In each new shell run:  . .\.tools\env.ps1" -ForegroundColor Green
-
-
-
-
-
-
-

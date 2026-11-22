@@ -3,9 +3,11 @@
 **Runs on:** Windows (admin). **Branch:** `winport/P09-service`
 
 ## Goal
+
 paperless-win runs as a proper Windows service that starts at boot, stops cleanly, runs under a least-privilege account, and has sane file permissions.
 
 ## Design
+
 - WinSW (pinned version, SHA256 recorded in `THIRD_PARTY.md`) is renamed to `paperless-win-service.exe`, with `windows/service/paperless-win-service.xml`:
   - `executable`: the venv's `paperless-ctl.exe`, `arguments`: `run`
   - `stopparentprocessfirst` / `stoptimeout` 30 s. Confirm the supervisor gets the signal and shuts children down (P6).
@@ -20,15 +22,18 @@ paperless-win runs as a proper Windows service that starts at boot, stops cleanl
 - Optional: a Windows Firewall rule for the web port, created only if the user opts in during install (LAN access).
 
 ## Steps
+
 1. Write the XML template, the `service` subcommands and the ACL code (pywin32 or `icacls` subprocess; pick the simplest).
 2. Integration test script `windows/scripts/test-service.ps1`, which must run as admin:
    install → start → `smoke.ps1` → restart the machine (manual step, documented) or restart the service → `smoke.ps1` → stop → check no processes are left → uninstall → check the service is gone and the data is kept.
 3. Check that the event log or WinSW logs show useful errors when Garnet's port is taken, the config is invalid, or the DB is locked.
 
 ## Acceptance criteria
+
 - [ ] `test-service.ps1` passes.
 - [ ] The service survives a reboot (verified manually once, results in Findings).
 - [ ] No files under ProgramData are writable by non-admin users except the consume folder.
 
 ## Findings
+
 _(fill in)_

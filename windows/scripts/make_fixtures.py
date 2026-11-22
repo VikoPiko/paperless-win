@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# ruff: noqa: INP001
 """Generate synthetic, non-private test fixtures (image-only "scanned" PDFs, PNG, barcode page).
 
 Usage: python windows/scripts/make_fixtures.py [--out DIR] [--smoke-only]

@@ -3,9 +3,11 @@
 **Runs on:** any OS. **Branch:** `winport/P12-docs`
 
 ## Goal
+
 A Windows user can install, use, back up, upgrade and troubleshoot paperless-win without reading Linux docs. The project is clearly unofficial and licence-compliant.
 
 ## Deliverables
+
 1. `README.md` top section (expanded from P0) covering:
    - what this is, the unofficial disclaimer, and where to report issues (this fork, never upstream);
    - download and install in 5 steps, with system requirements;
@@ -26,5 +28,6 @@ A Windows user can install, use, back up, upgrade and troubleshoot paperless-win
    - add a source offer or link in the installer's "About" (GPL/AGPL components).
 
 ## Acceptance criteria
+
 - [ ] Someone unfamiliar with the project can follow `install.md` on a fresh VM without asking questions. Ask the user to do this test.
 - [ ] Every bundled third-party component appears in `THIRD_PARTY.md` with its licence.

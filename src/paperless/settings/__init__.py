@@ -26,6 +26,8 @@ from paperless.settings.parsers import get_int_from_env
 from paperless.settings.parsers import get_json_from_env
 from paperless.settings.parsers import get_list_from_env
 from paperless.settings.parsers import get_path_from_env
+from paperless_win import bootstrap as _winport_bootstrap  # winport: Windows hook (P02)
+from paperless_win import platform as _winport_platform  # winport: Windows hook (P02)
 
 logger = logging.getLogger("paperless.settings")
 
@@ -35,10 +37,13 @@ for path in [
     "../paperless.conf",
     "/etc/paperless.conf",
     "/usr/local/etc/paperless.conf",
+    *_winport_platform.config_search_paths(),  # winport: Windows config locations (P02)
 ]:
     if path and Path(path).exists():
         load_dotenv(path)
         break
+
+_winport_bootstrap.apply()  # winport: PATH, libmagic, Windows defaults; after the conf is read (P02)
 
 # There are multiple levels of concurrency in paperless:
 #  - Multiple consumers may be run in parallel.

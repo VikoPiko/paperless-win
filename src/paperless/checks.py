@@ -13,6 +13,8 @@ from django.core.checks import Warning
 from django.core.checks import register
 from django.db import connections
 
+from paperless_win.platform import find_binary  # winport: binary lookup (P02)
+
 exists_message = "{} is set but doesn't exist."
 exists_hint = "Create a directory at {}"
 writeable_message = "{} is not writeable"
@@ -86,7 +88,7 @@ def binaries_check(app_configs: Any, **kwargs: Any) -> list[Error]:
 
     check_messages = []
     for binary in binaries:
-        if shutil.which(binary) is None:
+        if find_binary(binary) is None:  # winport: gs is gswin64c on Windows (P02)
             check_messages.append(Warning(error.format(binary), hint))
 
     return check_messages
