@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import json
 import os
+import re
 from pathlib import Path
 
 import pytest
 
 from paperless_win import bootstrap
+from paperless_win import fs
 from paperless_win import platform
 from paperless_win.tests.test_platform import fake_windows  # noqa: F401
 from paperless_win.tests.test_platform import touch
@@ -15,6 +18,8 @@ MANAGED_ENV = ("MAGIC", "HOME", "PAPERLESS_THUMBNAIL_FONT_NAME", "PAPERLESS_OCR_
 
 @pytest.fixture
 def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    # apply() writes os.environ directly: work on a private copy so nothing leaks
+    monkeypatch.setattr(os, "environ", os.environ.copy())
     for key in MANAGED_ENV:
         monkeypatch.delenv(key, raising=False)
 
@@ -91,3 +96,86 @@ def test_home_and_font_defaults(fake_windows: Path, clean_env: None) -> None:  #
     bootstrap.apply()
     assert Path(os.environ["HOME"]) == platform.default_tmp_dir()
     assert os.environ["PAPERLESS_THUMBNAIL_FONT_NAME"] == str(font)
+
+
+class TestConsumerDefaults:
+    def test_windows_ignore_patterns_are_added(
+        self,
+        fake_windows: Path,  # noqa: F811
+        clean_env: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("PAPERLESS_CONSUMER_IGNORE_PATTERNS", raising=False)
+        bootstrap.apply()
+        patterns = json.loads(os.environ["PAPERLESS_CONSUMER_IGNORE_PATTERNS"])
+        assert r"^~\$.*" in patterns
+        assert r".*\.crdownload$" in patterns
+        for junk in ("~$report.docx", "scan.tmp", "scan.pdf.part", "f.crdownload"):
+            assert any(re.match(p, junk) for p in patterns), junk
+        for fine in ("report.docx", "invoice.pdf", "tmp.pdf"):
+            assert not any(re.match(p, fine) for p in patterns), fine
+
+    def test_user_patterns_are_kept_and_not_duplicated(
+        self,
+        fake_windows: Path,  # noqa: F811
+        clean_env: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv(
+            "PAPERLESS_CONSUMER_IGNORE_PATTERNS",
+            json.dumps([r"^draft_.*", r"^~\$.*"]),
+        )
+        bootstrap.apply()
+        bootstrap.apply()
+        patterns = json.loads(os.environ["PAPERLESS_CONSUMER_IGNORE_PATTERNS"])
+        assert patterns[0] == r"^draft_.*"
+        assert patterns.count(r"^~\$.*") == 1
+        assert len(patterns) == len(set(patterns))
+
+    def test_invalid_user_value_is_left_alone(
+        self,
+        fake_windows: Path,  # noqa: F811
+        clean_env: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("PAPERLESS_CONSUMER_IGNORE_PATTERNS", "not json")
+        bootstrap.apply()
+        assert os.environ["PAPERLESS_CONSUMER_IGNORE_PATTERNS"] == "not json"
+
+    def test_network_share_defaults_to_polling(
+        self,
+        fake_windows: Path,  # noqa: F811
+        clean_env: None,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        monkeypatch.setenv("PAPERLESS_CONSUMPTION_DIR", "\\\\nas\\scans")
+        monkeypatch.delenv("PAPERLESS_CONSUMER_POLLING_INTERVAL", raising=False)
+        with caplog.at_level("INFO", logger="paperless.winport"):
+            bootstrap.apply()
+        assert os.environ["PAPERLESS_CONSUMER_POLLING_INTERVAL"] == "10"
+        assert "network share" in caplog.text
+
+    def test_explicit_polling_setting_wins(
+        self,
+        fake_windows: Path,  # noqa: F811
+        clean_env: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("PAPERLESS_CONSUMPTION_DIR", "\\\\nas\\scans")
+        monkeypatch.setenv("PAPERLESS_CONSUMER_POLLING_INTERVAL", "0")
+        bootstrap.apply()
+        assert os.environ["PAPERLESS_CONSUMER_POLLING_INTERVAL"] == "0"
+
+    def test_local_folder_keeps_native_events(
+        self,
+        fake_windows: Path,  # noqa: F811
+        clean_env: None,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        monkeypatch.setenv("PAPERLESS_CONSUMPTION_DIR", str(tmp_path))
+        monkeypatch.delenv("PAPERLESS_CONSUMER_POLLING_INTERVAL", raising=False)
+        monkeypatch.setattr(fs, "is_network_path", lambda path: False)
+        bootstrap.apply()
+        assert "PAPERLESS_CONSUMER_POLLING_INTERVAL" not in os.environ

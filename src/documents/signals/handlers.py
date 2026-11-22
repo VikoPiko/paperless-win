@@ -70,6 +70,7 @@ from documents.workflows.mutations import apply_removal_to_document
 from documents.workflows.mutations import apply_removal_to_overrides
 from documents.workflows.utils import get_workflows_for_trigger
 from paperless.config import AIConfig
+from paperless_win.fs import retry_io  # winport: retry on locked files (P05)
 
 if TYPE_CHECKING:
     import uuid
@@ -597,7 +598,9 @@ def update_filename_and_move_files(
                     settings.ORIGINALS_DIR,
                 )
                 create_source_path_directory(instance.source_path)
-                shutil.move(old_source_path, instance.source_path)
+                retry_io(
+                    lambda: shutil.move(old_source_path, instance.source_path),
+                )  # winport (P05)
 
             if move_archive:
                 validate_move(
@@ -607,7 +610,9 @@ def update_filename_and_move_files(
                     settings.ARCHIVE_DIR,
                 )
                 create_source_path_directory(instance.archive_path)
-                shutil.move(old_archive_path, instance.archive_path)
+                retry_io(
+                    lambda: shutil.move(old_archive_path, instance.archive_path),
+                )  # winport (P05)
 
             # Don't save() here to prevent infinite recursion.
             Document.global_objects.filter(pk=instance.pk).update(

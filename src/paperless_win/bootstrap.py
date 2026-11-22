@@ -8,14 +8,31 @@ explicit user setting is never overridden.
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 from typing import TYPE_CHECKING
 
+from paperless_win import fs
 from paperless_win import magic_compat
 from paperless_win import platform
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+logger = logging.getLogger("paperless.winport")
+
+# Files that must never be consumed (regexes, matched against the file name). Upstream already
+# ignores desktop.ini and Thumbs.db; these are the Windows-specific rest.
+WINDOWS_IGNORE_PATTERNS = (
+    r"^~\$.*",  # Office lock files: ~$report.docx
+    r".*\.tmp$",
+    r".*\.part$",
+    r".*\.crdownload$",
+)
+NETWORK_POLLING_INTERVAL = (
+    "10"  # seconds; native change events do not work on SMB shares
+)
 
 # Keeps os.add_dll_directory() handles alive; closing them would remove the directory.
 _dll_dir_handles: list[object] = []
@@ -87,3 +104,39 @@ def apply() -> None:
         magic_compat.install()
     except ImportError:
         pass  # python-magic is not installed (e.g. a minimal test environment)
+
+    _merge_ignore_patterns()
+    _default_polling_for_network_share()
+
+
+def _merge_ignore_patterns() -> None:
+    """Add the Windows junk patterns to ``PAPERLESS_CONSUMER_IGNORE_PATTERNS``.
+
+    The user's own patterns are kept (ours are appended); an unparsable value is left for
+    upstream's settings code to report.
+    """
+    raw = os.environ.get("PAPERLESS_CONSUMER_IGNORE_PATTERNS")
+    try:
+        current = json.loads(raw) if raw else []
+    except ValueError:
+        return
+    if not isinstance(current, list):
+        return
+    merged = [*current, *(p for p in WINDOWS_IGNORE_PATTERNS if p not in current)]
+    os.environ["PAPERLESS_CONSUMER_IGNORE_PATTERNS"] = json.dumps(merged)
+
+
+def _default_polling_for_network_share() -> None:
+    """Poll instead of waiting for change events when the consume folder is a network share."""
+    folder = os.environ.get("PAPERLESS_CONSUMPTION_DIR")
+    if not folder or "PAPERLESS_CONSUMER_POLLING_INTERVAL" in os.environ:
+        return
+    if fs.is_network_path(folder):
+        os.environ["PAPERLESS_CONSUMER_POLLING_INTERVAL"] = NETWORK_POLLING_INTERVAL
+        logger.info(
+            "PAPERLESS_CONSUMPTION_DIR %s is a network share: polling every %ss, because "
+            "file system events are not reliable on SMB. Set "
+            "PAPERLESS_CONSUMER_POLLING_INTERVAL to override.",
+            folder,
+            NETWORK_POLLING_INTERVAL,
+        )

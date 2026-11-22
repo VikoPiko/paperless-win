@@ -31,6 +31,7 @@ from documents.models import PaperlessTask
 from documents.models import Tag
 from documents.parsers import get_supported_file_extensions
 from documents.tasks import consume_file
+from paperless_win.fs import file_is_released  # winport: exclusive-open probe (P05)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -67,7 +68,11 @@ class TrackedFile:
         """
         try:
             stat = self.path.stat()
-            return stat.st_mtime == self.last_mtime and stat.st_size == self.last_size
+            return (
+                stat.st_mtime == self.last_mtime
+                and stat.st_size == self.last_size
+                and file_is_released(self.path)  # winport: writer has closed it (P05)
+            )
         except OSError:
             return False
 
