@@ -6,6 +6,7 @@ from kombu.serialization import register
 
 from paperless.signed_pickle import signed_pickle_dumps
 from paperless.signed_pickle import signed_pickle_loads
+from paperless_win import celery_signals  # noqa: F401  # winport: worker recycling + watchdog record (P06)
 
 # Set the default Django settings module for the 'celery' program.
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "paperless.settings")

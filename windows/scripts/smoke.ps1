@@ -15,6 +15,12 @@
   With -Barcode it also checks that a separator-page PDF is split into two documents.
   The uploaded document(s) are deleted afterwards unless -Keep is given.
   Exit code 0 = all assertions passed, 1 = a failure, 2 = bad setup.
+
+  With -StartStack the script starts the stack itself (`paperless-ctl run` in the background,
+  using the configuration from the environment / paperless.conf), waits for the web UI, runs
+  the checks above and stops the stack again. PAPERLESS_USER / PAPERLESS_PASS / PAPERLESS_URL
+  default to PAPERLESS_ADMIN_USER / PAPERLESS_ADMIN_PASSWORD / http://localhost:<PAPERLESS_PORT>.
+  Run `paperless-ctl init` first on a new data folder.
 #>
 [CmdletBinding()]
 param(
@@ -24,12 +30,51 @@ param(
     [switch]$Keep,
     # Also upload windows/fixtures/barcode.pdf (3 pages, PATCHT separator in the middle) and expect two
     # documents. The server must run with PAPERLESS_CONSUMER_ENABLE_BARCODES=true.
-    [switch]$Barcode
+    [switch]$Barcode,
+    # Start (and afterwards stop) the stack with paperless-ctl instead of expecting it to run.
+    [switch]$StartStack,
+    [int]$StartTimeoutSeconds = 120
 )
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
+if ($StartStack) {
+    if (-not $env:PAPERLESS_USER -and $env:PAPERLESS_ADMIN_USER) { $env:PAPERLESS_USER = $env:PAPERLESS_ADMIN_USER }
+    if (-not $env:PAPERLESS_PASS -and $env:PAPERLESS_ADMIN_PASSWORD) { $env:PAPERLESS_PASS = $env:PAPERLESS_ADMIN_PASSWORD }
+    if (-not $env:PAPERLESS_URL) {
+        $port = if ($env:PAPERLESS_PORT) { $env:PAPERLESS_PORT } else { '8000' }
+        $env:PAPERLESS_URL = "http://localhost:$port"
+    }
+    $repo = (Resolve-Path "$PSScriptRoot\..\..").Path
+    $py = Join-Path $repo '.venv\Scripts\python.exe'
+    if (-not (Test-Path $py)) { Write-Error "python not found: $py"; exit 2 }
+    $env:PYTHONUTF8 = '1'
+    $env:PYTHONPATH = Join-Path $repo 'src'
+    $log = Join-Path ([IO.Path]::GetTempPath()) 'paperless-ctl-smoke'
+    Write-Host "Starting the stack with paperless-ctl (log: $log.out.log / $log.err.log)"
+    $startArgs = @{ FilePath = $py; ArgumentList = @('-m', 'paperless_win', 'run'); WorkingDirectory = (Join-Path $repo 'src'); WindowStyle = 'Hidden'; PassThru = $true; RedirectStandardOutput = "$log.out.log"; RedirectStandardError = "$log.err.log" }
+    $stack = Start-Process @startArgs
+    $api = $env:PAPERLESS_URL.TrimEnd('/') + '/api/'
+    $deadline = (Get-Date).AddSeconds($StartTimeoutSeconds)
+    $up = $false
+    while (-not $up -and (Get-Date) -lt $deadline -and -not $stack.HasExited) {
+        try { $up = (Invoke-WebRequest $api -SkipHttpErrorCheck -TimeoutSec 3).StatusCode -in 200, 401, 403 } catch { Start-Sleep -Seconds 2 }
+    }
+    if (-not $up) {
+        Write-Host (Get-Content "$log.err.log" -Tail 15 -ErrorAction SilentlyContinue | Out-String)
+        if (-not $stack.HasExited) { & $py -m paperless_win stop | Out-Host }
+        Write-Error "the web UI did not come up within $StartTimeoutSeconds s"; exit 2
+    }
+    Start-Sleep -Seconds 8   # the workers need a few seconds longer than the web server
+    $forward = @('-NoProfile', '-File', $PSCommandPath, '-Fixture', $Fixture, '-KnownWord', $KnownWord, '-TimeoutSeconds', $TimeoutSeconds)
+    if ($Keep) { $forward += '-Keep' }
+    if ($Barcode) { $forward += '-Barcode' }
+    pwsh @forward
+    $code = $LASTEXITCODE
+    & $py -m paperless_win stop | Out-Host
+    exit $code
+}
 foreach ($name in 'PAPERLESS_URL', 'PAPERLESS_USER', 'PAPERLESS_PASS') {
     if (-not (Get-Item "Env:$name" -ErrorAction SilentlyContinue)) { Write-Error "$name is not set"; exit 2 }
 }
