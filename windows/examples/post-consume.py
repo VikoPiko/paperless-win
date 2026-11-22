@@ -1,3 +1,4 @@
+# ruff: noqa: INP001, T201
 """Example post-consume script for paperless-win (Python). Run with the service's own Python.
 
 Configure with PAPERLESS_POST_CONSUME_SCRIPT=C:\\path\\to\\post-consume.py
