@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING
 
 from paperless_win import jobs
 from paperless_win import platform
+from paperless_win import service
 from paperless_win import stack
 from paperless_win.supervisor import STATE_FILE
 from paperless_win.supervisor import STOP_REQUEST_FILE
@@ -47,6 +48,10 @@ STOP_WAIT_SECONDS = 40
 
 
 # -- settings -------------------------------------------------------------------------------
+class ConfigError(Exception):
+    """paperless.conf or the environment could not be turned into settings."""
+
+
 def load_settings():
     """Import ``paperless.settings``: reads paperless.conf and applies the Windows bootstrap."""
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "paperless.settings")
@@ -55,7 +60,10 @@ def load_settings():
         sys.path.insert(0, src)
     import importlib
 
-    return importlib.import_module("paperless.settings")
+    try:
+        return importlib.import_module("paperless.settings")
+    except Exception as exc:
+        raise ConfigError(f"{type(exc).__name__}: {exc}") from exc
 
 
 def say(text: str = "") -> None:
@@ -565,13 +573,14 @@ def do_stop(args: argparse.Namespace) -> int:
     cfg.run_dir.mkdir(parents=True, exist_ok=True)
     (cfg.run_dir / STOP_REQUEST_FILE).write_text("stop")
     say(f"asked supervisor {pid} to stop")
-    deadline = time.monotonic() + STOP_WAIT_SECONDS
+    timeout = getattr(args, "timeout", STOP_WAIT_SECONDS)
+    deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if not jobs.pid_alive(pid):
             say("stopped")
             return EXIT_OK
         time.sleep(0.5)
-    say(f"supervisor {pid} did not exit within {STOP_WAIT_SECONDS} s")
+    say(f"supervisor {pid} did not exit within {timeout:g} s")
     return EXIT_FAIL
 
 
@@ -588,6 +597,160 @@ def do_manage(args: argparse.Namespace) -> int:
 
 
 # -- entry point ----------------------------------------------------------------------------
+# -- service ---------------------------------------------------------------------------------
+def service_context() -> tuple[service.Layout, dict[str, Path], int]:
+    """Layout, configured data folders and web port; falls back to defaults if the
+    configuration cannot be loaded (so the service can still be installed and repaired)."""
+    try:
+        settings = load_settings()
+    except Exception as exc:
+        say(
+            f"warning: configuration could not be loaded ({exc}); using the default folders",
+        )
+        layout = service.default_layout()
+        root = layout.data_root
+        dirs = {
+            "data": root / "data",
+            "media": root / "media",
+            "consume": root / "consume",
+            "scratch": root / "scratch",
+            "logs": layout.log_dir,
+        }
+        return layout, dirs, 8000
+    layout = service.default_layout(Path(settings.LOGGING_DIR))
+    dirs = {
+        "data": Path(settings.DATA_DIR),
+        "media": Path(settings.MEDIA_ROOT),
+        "consume": Path(settings.CONSUMPTION_DIR),
+        "scratch": Path(settings.SCRATCH_DIR),
+        "logs": Path(settings.LOGGING_DIR),
+    }
+    return layout, dirs, int(stack.granian_env(os.environ)["GRANIAN_PORT"])
+
+
+def _account_from(args: argparse.Namespace) -> service.Account:
+    password = None
+    text = getattr(args, "account", "virtual") or "virtual"
+    account = service.Account.parse(text)
+    if account.kind == "user":
+        password = os.environ.get("PAPERLESS_WIN_SERVICE_PASSWORD")
+        if password is None:
+            import getpass
+
+            password = getpass.getpass(f"Password for {account.display}: ")
+        account = service.Account.parse(text, password)
+    return account
+
+
+def do_service(args: argparse.Namespace) -> int:
+    action = args.service_command
+    if action == "xml":
+        layout, _, _ = service_context()
+        say(service.render_xml(layout, service.Account.parse(args.account)))
+        return EXIT_OK
+    if action == "status":
+        state = service.service_state() if platform.IS_WINDOWS else None
+        if state is None:
+            say("The paperless-win service is not installed.")
+            return 3
+        say(f"The paperless-win service is {state}.")
+        return EXIT_OK if state == "RUNNING" else EXIT_FAIL
+    layout, dirs, port = service_context()
+    if action == "install":
+        account = _account_from(args)
+        service.install(
+            layout,
+            account,
+            dirs,
+            force=args.force,
+            winsw_source=Path(args.winsw) if args.winsw else None,
+        )
+        say(f"Service installed (account {account.display}).")
+        if args.firewall:
+            service.firewall(port)
+            say(
+                f"Windows Firewall: TCP port {port} allowed on private and domain networks.",
+            )
+        if args.start:
+            service.winsw(layout, "start")
+            say("Service started.")
+        return EXIT_OK
+    if action == "uninstall":
+        service.uninstall(layout)
+        service.firewall(port, remove=True)
+        say("Service removed. Data, logs and configuration were not touched.")
+        return EXIT_OK
+    if action in {"start", "stop", "restart"}:
+        if not service.is_admin():
+            raise service.ServiceError(service.ERROR_NOT_ADMIN)
+        # WinSW's plain `stop`/`restart` return before the service has changed state
+        service.winsw(
+            layout,
+            {"stop": "stopwait", "restart": "restartwait"}.get(action, action),
+        )
+        say(f"Service {action}: done.")
+        return EXIT_OK
+    if action == "set-account":
+        account = _account_from(args)
+        service.set_account(layout, account, dirs)
+        say(f"Service now runs as {account.display}.")
+        return EXIT_OK
+    if action == "acl":
+        if not service.is_admin():
+            raise service.ServiceError(service.ERROR_NOT_ADMIN)
+        service.apply_acls(layout, service.Account.parse(args.account), dirs)
+        say("Folder permissions applied.")
+        return EXIT_OK
+    if action == "firewall":
+        service.firewall(args.port or port, remove=args.firewall_command == "remove")
+        say("Firewall rule updated.")
+        return EXIT_OK
+    return EXIT_USAGE
+
+
+def add_service_commands(sub) -> None:
+    svc = sub.add_parser("service", help="install and control the Windows service")
+    svc_sub = svc.add_subparsers(dest="service_command", required=True)
+    account_help = "virtual (default), system, or DOMAIN\\user"
+
+    install = svc_sub.add_parser("install", help="register the service (administrator)")
+    install.add_argument("--account", default="virtual", help=account_help)
+    install.add_argument("--start", action="store_true", help="start it afterwards")
+    install.add_argument(
+        "--force",
+        action="store_true",
+        help="replace an installed service",
+    )
+    install.add_argument(
+        "--firewall",
+        action="store_true",
+        help="allow the web port in the Windows Firewall",
+    )
+    install.add_argument("--winsw", help="path of the WinSW executable to copy")
+    svc_sub.add_parser("uninstall", help="remove the service (data is kept)")
+    for name in ("start", "stop", "restart", "status"):
+        svc_sub.add_parser(name, help=f"{name} the service")
+    set_account = svc_sub.add_parser(
+        "set-account",
+        help="run the service as another user (needed for a NAS or domain share)",
+    )
+    set_account.add_argument(
+        "account",
+        help="DOMAIN\\user or .\\user; the password is asked for",
+    )
+    acl = svc_sub.add_parser("acl", help="(re)apply the folder permissions")
+    acl.add_argument("--account", default="virtual", help=account_help)
+    fw = svc_sub.add_parser(
+        "firewall",
+        help="allow or close the web port in the Windows Firewall",
+    )
+    fw.add_argument("firewall_command", choices=("allow", "remove"))
+    fw.add_argument("--port", type=int)
+    xml = svc_sub.add_parser("xml", help="print the WinSW configuration")
+    xml.add_argument("--account", default="virtual", help=account_help)
+    svc.set_defaults(func=do_service)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="paperless-ctl",
@@ -608,15 +771,34 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("status", help="show the supervised processes").set_defaults(
         func=do_status,
     )
-    sub.add_parser("stop", help="ask a running supervisor to shut down").set_defaults(
-        func=do_stop,
+    stop = sub.add_parser("stop", help="ask a running supervisor to shut down")
+    stop.add_argument(
+        "--timeout",
+        type=float,
+        default=STOP_WAIT_SECONDS,
+        help="seconds to wait for the supervisor to exit",
     )
+    stop.set_defaults(func=do_stop)
+    add_service_commands(sub)
     manage = sub.add_parser("manage", help="run manage.py with the right environment")
     manage.add_argument("manage_args", nargs=argparse.REMAINDER)
     manage.set_defaults(func=do_manage)
     return parser
 
 
+EXIT_ERROR = 4
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    return int(args.func(args) or 0)
+    try:
+        return int(args.func(args) or 0)
+    except service.ServiceError as exc:
+        say(f"error: {exc}")
+        return EXIT_ERROR
+    except ConfigError as exc:
+        say(f"error: the configuration is invalid: {exc}")
+        say(
+            "Check paperless.conf (and the PAPERLESS_* variables) and run 'paperless-ctl check'.",
+        )
+        return EXIT_ERROR

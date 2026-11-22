@@ -468,3 +468,14 @@ def test_state_file_describes_every_child(run_dir: Path) -> None:
     assert web["state"] == "running"
     assert web["pid"] == h.processes("web")[0].pid
     assert web["uptime_seconds"] == pytest.approx(65, abs=1)
+
+
+def test_startup_fails_clearly_when_the_port_is_taken_by_another_server(
+    run_dir: Path,
+) -> None:
+    """Another Redis answers PING, but our Garnet could not bind and died."""
+    h = Harness(run_dir, [spec("garnet", ready=lambda: True), spec("web")])
+    h.on_sleep = lambda: h.spawned[0].exit(1)
+    with pytest.raises(SupervisorError, match="another server already using that port"):
+        h.supervisor.start_all()
+    assert [p.spec.name for p in h.spawned] == ["garnet"]
