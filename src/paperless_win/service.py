@@ -174,13 +174,22 @@ def find_winsw(layout: Layout) -> Path | None:
 
 
 # -- the WinSW configuration -------------------------------------------------------------------
-def stop_arguments(layout: Layout) -> str:
-    """Command line of the stop executable (cmd.exe): ``paperless-ctl stop --force``, output to stop.log."""
+def stop_script_path(layout: Layout) -> Path:
+    return layout.service_dir / "paperless-win-stop.cmd"
+
+
+def stop_script(layout: Layout) -> str:
+    """The stop executable: ``paperless-ctl stop --force``, its output appended to stop.log."""
     log = layout.log_dir / "service" / "stop.log"
-    return (
-        f'/d /c ""{layout.python}" -m paperless_win stop '
-        f'--timeout {STOP_COMMAND_TIMEOUT_SECONDS} --force >> "{log}" 2>&1"'
-    )
+    lines = [
+        "@echo off",
+        "rem Written by 'paperless-ctl service install'. WinSW appends the arguments of the service",
+        "rem to this script's arguments; they are not used.",
+        f'cd /d "{layout.src_dir}"',
+        f'"{layout.python}" -m paperless_win stop --timeout {STOP_COMMAND_TIMEOUT_SECONDS} --force >> "{log}" 2>&1',
+        "",
+    ]
+    return "\r\n".join(lines)
 
 
 def render_xml(
@@ -206,11 +215,12 @@ def render_xml(
     add("arguments", "-m paperless_win run")
     add("workingdirectory", str(layout.src_dir))
     # Stop by asking the supervisor, which drains workers and stops children in order. WinSW 2.x
-    # waits for the main process for ever once a stop executable has run (its `stoptimeout` is not
-    # applied), so the stop command itself kills the supervisor's tree when it does not exit in time
-    # (--force). Its output goes to stop.log: WinSW throws the output of a stop executable away.
-    add("stopexecutable", r"%SystemRoot%\System32\cmd.exe")
-    add("stoparguments", stop_arguments(layout))
+    # appends the <arguments> of the service to the arguments of the stop executable and waits for
+    # the main process for ever once a stop executable has run (`stoptimeout` is not applied). So
+    # the stop executable is a batch file, which ignores the extra arguments and writes the output
+    # that WinSW would throw away to stop.log, and `stop --force` kills the supervisor's tree when it
+    # does not exit in time.
+    add("stopexecutable", str(stop_script_path(layout)))
     add("stoptimeout", f"{STOP_TIMEOUT_SECONDS} sec")
     add("startmode", "Automatic")
     if delayed_start:
@@ -504,6 +514,11 @@ def install(
     layout.data_root.mkdir(parents=True, exist_ok=True)
     (layout.log_dir / "service").mkdir(parents=True, exist_ok=True)
     write_xml(layout, account)
+    stop_script_path(layout).write_text(
+        stop_script(layout),
+        encoding="utf-8",
+        newline="",
+    )
     try:
         winsw(layout, "install")
     finally:

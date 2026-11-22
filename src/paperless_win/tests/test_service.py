@@ -49,13 +49,18 @@ def test_xml_runs_the_supervisor_and_stops_it_by_asking(tmp_path: Path) -> None:
     assert root.findtext("executable") == str(layout(tmp_path).python)
     assert root.findtext("arguments") == "-m paperless_win run"
     assert root.findtext("workingdirectory") == str(layout(tmp_path).src_dir)
-    assert root.findtext("stopexecutable") == r"%SystemRoot%\System32\cmd.exe"
-    stop = root.findtext("stoparguments")
-    assert stop.startswith('/d /c ""')
-    assert "-m paperless_win stop --timeout 25 --force" in stop
-    assert stop.endswith(
-        'stop.log" 2>&1"',
+    lay = layout(tmp_path)
+    assert root.findtext("stopexecutable") == str(
+        lay.service_dir / "paperless-win-stop.cmd",
+    )
+    # WinSW 2.x appends <arguments> to the stop arguments: none are given, the batch file ignores them
+    assert root.find("stoparguments") is None
+    script = service.stop_script(lay)
+    assert "-m paperless_win stop --timeout 25 --force" in script
+    assert (
+        'stop.log" 2>&1' in script
     )  # a stop executable's own output is thrown away by WinSW
+    assert script.startswith("@echo off\r\n")
     env = {e.get("name"): e.get("value") for e in root.findall("env")}
     assert env["PYTHONPATH"] == str(layout(tmp_path).src_dir)
     assert root.findtext("stoptimeout") == "30 sec"
