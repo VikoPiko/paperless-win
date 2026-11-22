@@ -361,3 +361,57 @@ def test_pid_alive_knows_itself_and_a_dead_pid() -> None:
     assert jobs.pid_alive(os.getpid())
     assert not jobs.pid_alive(0)
     assert not jobs.pid_alive(2**22 + 12345)
+
+
+def stop_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    exits: bool,
+) -> list[list[int]]:
+    """A running "supervisor" (pid 4242) that does, or does not, exit after a stop request."""
+    cfg = config(tmp_path)
+    monkeypatch.setattr(ctl, "load_settings", lambda: object())
+    monkeypatch.setattr(
+        stack.StackConfig,
+        "from_settings",
+        classmethod(lambda _c, _s: cfg),
+    )
+    monkeypatch.setattr(ctl, "running_supervisor", lambda _run_dir: 4242)
+    monkeypatch.setattr(jobs, "pid_alive", lambda _pid: not exits)
+    monkeypatch.setattr(jobs, "descendants", lambda _pid: [4243, 4244])
+    monkeypatch.setattr(ctl.time, "sleep", lambda _s: None)
+    clock = iter(range(0, 1000, 10))
+    monkeypatch.setattr(ctl.time, "monotonic", lambda: float(next(clock)))
+    killed: list[list[int]] = []
+    monkeypatch.setattr(jobs, "kill_pids", killed.append)
+    return killed
+
+
+def test_stop_waits_for_the_supervisor_to_exit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    killed = stop_environment(tmp_path, monkeypatch, exits=True)
+    args = SimpleNamespace(timeout=25.0, force=True)
+    assert ctl.do_stop(args) == ctl.EXIT_OK
+    assert killed == []  # it exited by itself: nothing to kill
+    assert (tmp_path / "run" / "supervisor.stop").exists()
+
+
+def test_stop_without_force_reports_a_supervisor_that_does_not_exit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    killed = stop_environment(tmp_path, monkeypatch, exits=False)
+    assert ctl.do_stop(SimpleNamespace(timeout=25.0, force=False)) == ctl.EXIT_FAIL
+    assert killed == []
+
+
+def test_stop_force_kills_the_tree_of_a_supervisor_that_does_not_exit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    killed = stop_environment(tmp_path, monkeypatch, exits=False)
+    assert ctl.do_stop(SimpleNamespace(timeout=25.0, force=True)) == ctl.EXIT_OK
+    assert killed == [[4242, 4243, 4244]]

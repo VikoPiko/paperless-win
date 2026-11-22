@@ -174,6 +174,15 @@ def find_winsw(layout: Layout) -> Path | None:
 
 
 # -- the WinSW configuration -------------------------------------------------------------------
+def stop_arguments(layout: Layout) -> str:
+    """Command line of the stop executable (cmd.exe): ``paperless-ctl stop --force``, output to stop.log."""
+    log = layout.log_dir / "service" / "stop.log"
+    return (
+        f'/d /c ""{layout.python}" -m paperless_win stop '
+        f'--timeout {STOP_COMMAND_TIMEOUT_SECONDS} --force >> "{log}" 2>&1"'
+    )
+
+
 def render_xml(
     layout: Layout,
     account: Account | None = None,
@@ -196,13 +205,12 @@ def render_xml(
     add("executable", str(layout.python))
     add("arguments", "-m paperless_win run")
     add("workingdirectory", str(layout.src_dir))
-    # Stop by asking the supervisor, which drains workers and stops children in order. WinSW
-    # waits `stoptimeout` for the main process to exit, then kills what is left.
-    add("stopexecutable", str(layout.python))
-    add(
-        "stoparguments",
-        f"-m paperless_win stop --timeout {STOP_COMMAND_TIMEOUT_SECONDS}",
-    )
+    # Stop by asking the supervisor, which drains workers and stops children in order. WinSW 2.x
+    # waits for the main process for ever once a stop executable has run (its `stoptimeout` is not
+    # applied), so the stop command itself kills the supervisor's tree when it does not exit in time
+    # (--force). Its output goes to stop.log: WinSW throws the output of a stop executable away.
+    add("stopexecutable", r"%SystemRoot%\System32\cmd.exe")
+    add("stoparguments", stop_arguments(layout))
     add("stoptimeout", f"{STOP_TIMEOUT_SECONDS} sec")
     add("startmode", "Automatic")
     if delayed_start:
@@ -220,6 +228,8 @@ def render_xml(
     add("env", name="PAPERLESS_CONFIGURATION_PATH", value=str(layout.conf_path))
     add("env", name="PAPERLESS_WIN_APP_DIR", value=str(layout.app_dir))
     add("env", name="PYTHONUTF8", value="1")
+    # the stop command is not started in the working directory of the service
+    add("env", name="PYTHONPATH", value=str(layout.src_dir))
     if os.environ.get("PAPERLESS_WIN_DATA_ROOT"):
         add(
             "env",

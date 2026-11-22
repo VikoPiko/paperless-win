@@ -582,6 +582,12 @@ def do_stop(args: argparse.Namespace) -> int:
             return EXIT_OK
         time.sleep(0.5)
     say(f"supervisor {pid} did not exit within {timeout:g} s")
+    if getattr(args, "force", False):
+        # the Windows service must not stay "stopping" for ever: end the whole tree
+        victims = [pid, *jobs.descendants(pid)]
+        jobs.kill_pids(victims)
+        say(f"killed the supervisor and {len(victims) - 1} other process(es)")
+        return EXIT_OK
     return EXIT_FAIL
 
 
@@ -840,6 +846,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=STOP_WAIT_SECONDS,
         help="seconds to wait for the supervisor to exit",
+    )
+    stop.add_argument(
+        "--force",
+        action="store_true",
+        help="kill the supervisor and everything it started if it does not exit in time",
     )
     stop.set_defaults(func=do_stop)
     add_service_commands(sub)
