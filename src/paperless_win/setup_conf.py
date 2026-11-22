@@ -70,6 +70,7 @@ def render_conf(values: ConfValues, secret_key: str) -> str:
         f"PAPERLESS_OCR_LANGUAGE={values.ocr_languages}",
         f"PAPERLESS_PORT={values.port}",
         f"PAPERLESS_BIND_ADDR={values.bind}",
+        "PAPERLESS_APP_TITLE=paperless-win",  # the title in the browser; upstream setting, no UI change
     ]
     lines.extend(f"{key}={value}" for key, value in sorted(values.extra.items()))
     return "\n".join(lines) + "\n"

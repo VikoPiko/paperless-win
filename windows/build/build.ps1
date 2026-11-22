@@ -148,7 +148,13 @@ Copy-Tree "$repo\windows\examples" "$app\examples"
 Copy-Item "$repo\LICENSE" "$app\LICENSE.txt"
 Copy-Item "$repo\windows\THIRD_PARTY.md" "$app\THIRD_PARTY.md"
 Copy-Item "$repo\windows\SERVICE.md" "$app\SERVICE.md"
+Copy-Item "$repo\windows\NOTICE.md" "$app\NOTICE.md"
+Copy-Tree "$repo\windows\docs" "$app\docs"
 Set-Content "$app\VERSION" $Version -NoNewline -Encoding ascii
+$components = ($manifest.inputs | Where-Object { $_.scope -eq 'bundled' } | ForEach-Object {
+        "  - {0} {1}`r`n    licence: {2}`r`n    source: {3}" -f $_.name, $_.version, $_.license, $_.source
+    }) -join "`r`n"
+Copy-Tree "$repo\windows\licenses" "$app\licenses"
 @"
 paperless-win is an UNOFFICIAL port of paperless-ngx to Windows. It is not made, endorsed or
 supported by the paperless-ngx project or its contributors: please do not ask them for help
@@ -158,6 +164,17 @@ paperless-win is free software under the GNU General Public License, version 3, 
 paperless-ngx. It also contains third-party programs under their own licences (see
 THIRD_PARTY.md in the installation folder). This installer is not code-signed yet, so Windows
 SmartScreen may warn before it starts: choose "More info", then "Run anyway".
+
+Source code: the source of this version, with the changes made to paperless-ngx (NOTICE.md and
+windows/PATCHES.md), is at https://github.com/VikoPiko/paperless-win. The source of every program
+from another project that is part of the installer (for example Ghostscript, which is AGPL, and
+Tesseract) is reachable through the links in THIRD_PARTY.md; if one of them stops working, ask at
+https://github.com/VikoPiko/paperless-win/issues.
+
+Programs from other projects in this installer, with their licences (the licence texts are in the
+"licenses" folder of the installation; the source is at the address given):
+
+"@ + $components + @"
 
 ------------------------------------------------------------------------------------------
 

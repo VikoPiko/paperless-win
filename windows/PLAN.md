@@ -51,22 +51,22 @@ Windows Service "paperless-win"  (WinSW → paperless-ctl run)
 Each phase is a task file in `windows/tasks/` written for Claude Code. Do them in order;
 P7/P8 can run in parallel with P5/P6 once P4 is done.
 
-| #   | Task file                   | Outcome                                                                | Needs Windows? | Status                                     |
-| --- | --------------------------- | ---------------------------------------------------------------------- | -------------- | ------------------------------------------ |
-| P0  | `00-fork-setup.md`          | Fork, remotes, fork docs, patch-checker, Windows CI skeleton           | No             | ☑ done (PR open)                           |
-| P1  | `01-spike.md`               | Manual Windows run end-to-end; findings decide go/no-go details        | **Yes**        | ◐ done, Findings awaiting review           |
-| P2  | `02-platform-layer.md`      | `paperless_win.platform`: binary lookup, default paths, config search  | Yes            | ☑ done, CI green                           |
-| P3  | `03-paths-filenames.md`     | POSIX-stored paths, Windows-safe filenames, data migration             | Partly         | ☑ done, CI green                           |
-| P4  | `04-external-tools.md`      | pikepdf instead of qpdf/pdfinfo CLIs, poppler/libmagic wiring          | Yes            | ☑ done, CI green                           |
-| P5  | `05-consumer-robustness.md` | File-lock retries, stable-file detection, script dispatch, UNC polling | Yes            | ☑ done, CI green                           |
-| P6  | `06-runtime-supervisor.md`  | `paperless-ctl` (init/run/check), supervisor, solo workers, watchdog   | Yes            | ☑ done (soak passed)                       |
-| P7  | `07-ai-optional.md`         | `ai-local` extra; base works without torch                             | No             | ☑ done, CI green                           |
-| P8  | `08-office-docs.md`         | Local LibreOffice converter as Gotenberg alternative                   | Yes            | ☐                                          |
-| P9  | `09-windows-service.md`     | WinSW service, accounts, ACLs, logs                                    | Yes            | ◐ CI-verified, reboot check pending        |
-| P10 | `10-packaging-installer.md` | Reproducible build script + Inno Setup installer + upgrade             | Yes            | ◐ CI install test passes, clean-VM pending |
-| P11 | `11-ci-release.md`          | Windows test job, smoke job, release workflow                          | No (CI)        | ◐ CI + dry run done, release untested      |
-| P12 | `12-docs-branding.md`       | README, user docs, disclaimers, THIRD_PARTY                            | No             | ☐                                          |
-| —   | `../UPSTREAM-SYNC.md`       | Repeatable procedure for each upstream release                         | Partly         | ongoing                                    |
+| #   | Task file                   | Outcome                                                                | Needs Windows? | Status                                                  |
+| --- | --------------------------- | ---------------------------------------------------------------------- | -------------- | ------------------------------------------------------- |
+| P0  | `00-fork-setup.md`          | Fork, remotes, fork docs, patch-checker, Windows CI skeleton           | No             | ☑ done (PR open)                                        |
+| P1  | `01-spike.md`               | Manual Windows run end-to-end; findings decide go/no-go details        | **Yes**        | ◐ done, Findings awaiting review                        |
+| P2  | `02-platform-layer.md`      | `paperless_win.platform`: binary lookup, default paths, config search  | Yes            | ☑ done, CI green                                        |
+| P3  | `03-paths-filenames.md`     | POSIX-stored paths, Windows-safe filenames, data migration             | Partly         | ☑ done, CI green                                        |
+| P4  | `04-external-tools.md`      | pikepdf instead of qpdf/pdfinfo CLIs, poppler/libmagic wiring          | Yes            | ☑ done, CI green                                        |
+| P5  | `05-consumer-robustness.md` | File-lock retries, stable-file detection, script dispatch, UNC polling | Yes            | ☑ done, CI green                                        |
+| P6  | `06-runtime-supervisor.md`  | `paperless-ctl` (init/run/check), supervisor, solo workers, watchdog   | Yes            | ☑ done (soak passed)                                    |
+| P7  | `07-ai-optional.md`         | `ai-local` extra; base works without torch                             | No             | ☑ done, CI green                                        |
+| P8  | `08-office-docs.md`         | Local LibreOffice converter as Gotenberg alternative                   | Yes            | ☐                                                       |
+| P9  | `09-windows-service.md`     | WinSW service, accounts, ACLs, logs                                    | Yes            | ◐ CI-verified, reboot check pending                     |
+| P10 | `10-packaging-installer.md` | Reproducible build script + Inno Setup installer + upgrade             | Yes            | ◐ CI install test passes, clean-VM pending              |
+| P11 | `11-ci-release.md`          | Windows test job, smoke job, release workflow                          | No (CI)        | ◐ CI + dry run done, release untested                   |
+| P12 | `12-docs-branding.md`       | README, user docs, disclaimers, THIRD_PARTY                            | No             | ◐ docs and licences done, fresh-VM test needs the owner |
+| —   | `../UPSTREAM-SYNC.md`       | Repeatable procedure for each upstream release                         | Partly         | ongoing                                                 |
 
 **Definition of done for v0.1.0 (first public release):** P0–P6, P9–P12 complete;
 `smoke.ps1` passes on a clean Windows 11 VM from the installer; Linux CI green;

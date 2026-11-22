@@ -47,6 +47,8 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 WizardStyle=modern
 UninstallDisplayName=paperless-win (unofficial paperless-ngx for Windows)
+SetupIconFile=paperless-win.ico
+UninstallDisplayIcon={app}\paperless-win.ico
 SetupLogging=yes
 CloseApplications=no
 RestartApplications=no
@@ -61,6 +63,7 @@ Name: "ailocal"; Description: "Local AI add-on: embeddings that run on this comp
 
 [Files]
 Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "paperless-win.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [InstallDelete]
 ; an upgrade replaces the code and rebuilds the venv; configuration and data live outside {app}
@@ -83,7 +86,7 @@ Type: files; Name: "{app}\install.log"
 Filename: "{app}\paperless-win.url"; Section: "InternetShortcut"; Key: "URL"; String: "http://localhost:{code:GetPort}/"
 
 [Icons]
-Name: "{autoprograms}\paperless-win"; Filename: "{app}\paperless-win.url"; Comment: "Open paperless-win in your browser"
+Name: "{autoprograms}\paperless-win"; Filename: "{app}\paperless-win.url"; IconFilename: "{app}\paperless-win.ico"; Comment: "Open paperless-win in your browser"
 Name: "{autoprograms}\paperless-win folder of documents to import"; Filename: "{code:GetConsumeDir}"
 
 [Registry]

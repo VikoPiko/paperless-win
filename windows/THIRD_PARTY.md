@@ -4,9 +4,19 @@ paperless-win is GPL-3.0, like upstream paperless-ngx. This file lists every thi
 binary or asset the fork bundles or downloads, with its license and source. Python
 dependencies are listed by `pyproject.toml` / `uv.lock` and are not repeated here.
 
-> Licenses below are the ones we believe apply as of the pinned versions. P12 must
-> re-verify each entry against the shipped files and add copies of the license texts to
-> the installer before the first release.
+> **Verification (P12).** Each licence below was compared with the text that ships with, or is
+> published at the pinned version of, the component. The texts are installed in the `licenses`
+> folder of the application (`windows/licenses/` in the source tree; CPython, Poppler, pngquant and
+> Liberation Serif bring their own, in their folders) and the installer's licence page lists every
+> bundled component with its licence and source. Checked: Tesseract and its language data (Apache-2.0
+> text from the Tesseract package), Ghostscript (AGPL-3.0 text from the package), Garnet and WinSW
+> (MIT), uv (MIT and Apache-2.0, both texts), libmagic (the BSD-style `COPYING` of `file`), PCRE2
+> (BSD-3-Clause with the PCRE2 exception), pngquant (GPL-3.0-or-later; its `COPYRIGHT` file also
+> carries the older permissive notices of the code it is derived from), Liberation Serif (OFL text
+> shipped), CPython (PSF text shipped). **Not fully verifiable here:** the Windows build of Poppler only
+> ships the licences of its _data_ files (Adobe, GPL-2/3, MIT); that the programs are
+> GPL-2.0-or-later is what the Poppler project states. Python packages are not repeated here (see
+> `uv.lock`; their licences are in the installed `site-packages` folders).
 
 ## Bundled in the installer and used by the dev bootstrap
 
@@ -19,7 +29,7 @@ This table is generated from `windows/build/manifest.json` by `python windows/bu
 | CPython (python-build-standalone, stripped) | 3.13.18 (release 20261110) | PSF-2.0 | https://github.com/astral-sh/python-build-standalone | The interpreter of the installed app; the venv is created from it at install time. SHA256 matches the release's SHA256SUMS. SHA256 `2e0fed09d48989f64c9305da9ff2d37a41c0d13ab2aa6283405b2b620dfbf805`. |
 | Tesseract OCR | 5.4.0.20240606 (UB-Mannheim build) | Apache-2.0 | https://github.com/UB-Mannheim/tesseract | Unpacked with 7-Zip (the installer asks for admin rights); `eng` and `osd` traineddata from it, more languages selectable SHA256 `c885fff6998e0608ba4bb8ab51436e1c6775c2bafc2559a19b423e18678b60c9`. |
 | tessdata_fast `deu.traineddata` | main @ fetch time, SHA256 pinned | Apache-2.0 | https://github.com/tesseract-ocr/tessdata_fast | SHA256 `19d219bbb6672c869d20a9636c6816a81eb9a71796cb93ebe0cb1530e2cdb22d`. |
-| Ghostscript | 10.08.0 | AGPL-3.0 | https://github.com/ArtifexSoftware/ghostpdl-downloads | Source offer must accompany the installer SHA256 `52a91b8bf09298788d7a57b9206127026c23eacd75405f0a131e26dc381dce50`. |
+| Ghostscript | 10.08.0 | AGPL-3.0 | https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/tag/gs10080 | AGPL: the unmodified source of this version is https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10080/ghostscript-10.08.0.tar.gz (named on the installer's licence page and in THIRD_PARTY.md) SHA256 `52a91b8bf09298788d7a57b9206127026c23eacd75405f0a131e26dc381dce50`. |
 | Poppler (Windows build) | 26.09.0-0 | GPL-2.0-or-later | https://github.com/oschwartz10612/poppler-windows | SHA256 `7a6f256a0ddf7536182246a5733331bf4677cbcc34f4663774947ad34556c8d0`. |
 | pngquant | 2.17.0 | GPL-3.0-or-later | https://pngquant.org/ | pngquant.org serves an unversioned URL; if the hash stops matching, review and re-pin SHA256 `bd0257aeeccfe446a4cd764927e26f8af6051796f28abed104307284107b120d`. |
 | Microsoft Garnet | 2.2.13 | MIT | https://github.com/microsoft/garnet | Redis-compatible broker (D2) SHA256 `cc8212d7c7a671c490e5c87967fc43025a22215922bdbdad5eccff00915c7b82`. |

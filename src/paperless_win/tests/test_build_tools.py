@@ -99,3 +99,22 @@ def test_third_party_md_matches_the_manifest() -> None:
     assert third.render(current, inputs) == current, (
         "windows/THIRD_PARTY.md is out of date: run python windows/build/make-third-party.py"
     )
+
+
+# components whose own package already installs the licence text (see windows/licenses/README.md)
+SHIPS_ITS_LICENSE = {"Python", "Poppler", "Pngquant", "Liberation"}
+
+
+@pytest.mark.skipif(not BUILD.is_dir(), reason="needs a full checkout")
+def test_every_bundled_component_has_a_licence_text() -> None:
+    licenses = {path.stem for path in (ROOT / "windows" / "licenses").glob("*.txt")}
+    manifest = json.loads((BUILD / "manifest.json").read_text(encoding="utf-8"))
+    missing = []
+    for item in manifest["inputs"]:
+        if item["scope"] != "bundled" or item["id"] in SHIPS_ITS_LICENSE:
+            continue
+        # the Tesseract language files are under the licence of Tesseract
+        name = "Tesseract" if item["id"].startswith("Tess") else item["id"]
+        if not any(stem == name or stem.startswith(name + "-") for stem in licenses):
+            missing.append(item["id"])
+    assert not missing, f"no text in windows/licenses/ for: {missing}"

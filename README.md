@@ -1,6 +1,46 @@
-<!-- winport: unofficial-port notice (P00) -->
+<!-- winport: unofficial-port notice (P00), install and docs section (P12) -->
 
 > **paperless-win** is an unofficial Windows port of paperless-ngx. Not affiliated with or supported by the paperless-ngx project. Report issues here, not upstream.
+
+# paperless-win
+
+paperless-win runs [paperless-ngx](https://github.com/paperless-ngx/paperless-ngx) **natively on Windows 10 and 11**: no Docker, no WSL, no virtual machine. You download an installer, answer four questions, and get the paperless-ngx web interface at `http://localhost:8000`, a folder you can drop scans into, and a Windows service that starts with the computer. It is the same application as upstream (same web interface, same API, same documents), built from the upstream release tag with a thin Windows layer; what changed is listed in [`windows/PATCHES.md`](windows/PATCHES.md) and [`windows/NOTICE.md`](windows/NOTICE.md).
+
+**It is not made, endorsed or supported by the paperless-ngx project.** Do not report problems with it to them: use the [issues of this repository](https://github.com/VikoPiko/paperless-win/issues).
+
+## Install
+
+1. Download `paperless-win-setup-<version>.exe` (and `SHA256SUMS`) from the [releases](https://github.com/VikoPiko/paperless-win/releases) page. The installer is not code-signed yet: SmartScreen will say "Windows protected your PC", so compare the checksum, then choose **More info**, **Run anyway**.
+2. Run it as an administrator (it installs a Windows service).
+3. Pick the data folder and the consume folder, create the first administrator account, choose the web port and the OCR languages.
+4. Wait a few minutes while it sets up the database and the search index.
+5. Open `http://localhost:8000` and sign in.
+
+Needs Windows 10/11 (64 bit), about 2 GB of disk space and 1.5 GB of memory while OCR runs. Nothing else has to be installed; the installer works without internet access. More in [`windows/docs/install.md`](windows/docs/install.md) (including unattended installation).
+
+## Documentation
+
+- [Installing](windows/docs/install.md), [configuring](windows/docs/configuration.md), [running, backing up, upgrading and moving from Docker](windows/docs/operations.md), [troubleshooting](windows/docs/troubleshooting.md), [the Windows service](windows/SERVICE.md)
+- Using paperless-ngx itself (tags, correspondents, workflows, mail rules, the API...): the [upstream documentation](https://docs.paperless-ngx.com) applies unchanged.
+- For contributors: [`windows/PLAN.md`](windows/PLAN.md), [`windows/UPSTREAM-SYNC.md`](windows/UPSTREAM-SYNC.md), [`windows/THIRD_PARTY.md`](windows/THIRD_PARTY.md).
+
+## What is different from the Linux version
+
+| Area                    | In paperless-win                                                                                                                                                       |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Installation, processes | An installer and one Windows service; the container's process manager is replaced by a supervisor (`paperless-ctl`).                                                   |
+| Broker                  | Microsoft Garnet (Redis-compatible), bundled and started by the service. An external Redis is not supported yet.                                                       |
+| Database                | SQLite by default; PostgreSQL if you provide a server. MariaDB/MySQL is not included.                                                                                  |
+| Task workers            | Several single-task worker processes (Windows has no prefork); a worker is restarted after every document, and a task past its time limit is killed by the supervisor. |
+| `unpaper`, `jbig2enc`   | Not included (cleaning options and the smallest PDFs are unavailable unless you supply the programs).                                                                  |
+| Office documents        | Not set up yet: needs LibreOffice and Tika, which are not bundled.                                                                                                     |
+| Local AI embeddings     | Optional add-on (large download). Online and separate AI services work in the base install.                                                                            |
+| Network consume folders | Polled every 10 s; the service must run as a user that can open the share.                                                                                             |
+| Scale                   | One computer.                                                                                                                                                          |
+
+## License
+
+GPL-3.0, like paperless-ngx: see [`LICENSE`](LICENSE). Programs bundled in the installer have their own licences, listed in [`windows/THIRD_PARTY.md`](windows/THIRD_PARTY.md).
 
 <!-- /winport -->
 
