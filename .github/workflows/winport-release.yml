@@ -1,0 +1,173 @@
+name: winport release
+# Tag `vX.Y.Z-win.N` (X.Y.Z = the upstream release this is based on) to build the installer, install it
+# on a fresh runner, run the smoke test against the installed service and publish a GitHub release on
+# this fork. Run it by hand (workflow_dispatch) to try the build and the install test without a release.
+on:
+  push:
+    tags:
+      - 'v*-win.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build, for example 3.5.1-win.1 (nothing is published)'
+        required: true
+        default: '0.0.0-ci'
+permissions:
+  contents: read
+concurrency:
+  group: winport-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    name: Build the installer
+    if: github.repository_owner != 'paperless-ngx'
+    runs-on: windows-latest
+    timeout-minutes: 120
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Version
+        id: version
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
+        run: |
+          $v = $env:TAG -replace '^v', ''
+          if ($v -notmatch '^[0-9A-Za-z][0-9A-Za-z.+-]*$') { throw "unusable version '$v'" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+      - name: Git line endings
+        run: git config --global core.autocrlf false
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Cache the downloaded inputs
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tools/dl
+          key: inputs-${{ runner.os }}-${{ hashFiles('windows/build/manifest.json') }}
+      - name: Build (tools, frontend, wheelhouse, installer, Local AI wheels)
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: windows/build/build.ps1 -Version $env:VERSION -IncludeAiLocal
+      - name: Checksums
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          Set-Location dist
+          $files = @("paperless-win-setup-$env:VERSION.exe", "paperless-win-ai-local-$env:VERSION.zip", "app-hashes-$env:VERSION.txt")
+          $files | ForEach-Object { '{0} *{1}' -f (Get-FileHash $_ -Algorithm SHA256).Hash.ToLower(), $_ } | Set-Content SHA256SUMS -Encoding ascii
+          Get-Content SHA256SUMS
+      - name: Upload the release files
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-files
+          path: |
+            dist/paperless-win-setup-*.exe
+            dist/paperless-win-ai-local-*.zip
+            dist/app-hashes-*.txt
+            dist/SHA256SUMS
+          if-no-files-found: error
+          compression-level: 0
+  install-test:
+    name: Install on a fresh runner and smoke test
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Git line endings
+        run: git config --global core.autocrlf false
+      - name: Checkout (for the smoke test script and fixtures only)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download the installer
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-files
+          path: dist
+      - name: Check the checksums
+        shell: pwsh
+        working-directory: dist
+        run: |
+          foreach ($line in Get-Content SHA256SUMS) {
+            $hash, $name = $line -split ' \*', 2
+            $actual = (Get-FileHash $name -Algorithm SHA256).Hash.ToLower()
+            if ($actual -ne $hash) { throw "$name does not match SHA256SUMS" }
+            "ok $name"
+          }
+      - name: "Silent install (as administrator, which also installs the Windows service)"
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          $p = Start-Process "dist\paperless-win-setup-$env:VERSION.exe" -PassThru -ArgumentList @(
+            '/VERYSILENT', '/SUPPRESSMSGBOXES', '/DIR=C:\paperless-win', '/DATADIR=C:\paperless-data',
+            '/ADMINUSER=admin', '/ADMINPASSWORD=ci-install-password-1', '/PORT=8000', '/LANGS=deu', '/LOG=C:\setup.log')
+          if (-not $p.WaitForExit(1500000)) { $p.Kill($true); throw 'the installer did not finish in 25 minutes' }
+          if ($p.ExitCode -ne 0) { throw "the installer exited with code $($p.ExitCode)" }
+      - name: The service is running
+        shell: pwsh
+        run: |
+          Get-Service paperless-win | Format-List Name, Status, StartType
+          if ((Get-Service paperless-win).Status -ne 'Running') { throw 'the service is not running' }
+          C:\paperless-win\paperless-ctl.cmd status
+      - name: Smoke test against the installed service
+        shell: pwsh
+        env:
+          PAPERLESS_URL: http://localhost:8000
+          PAPERLESS_USER: admin
+          PAPERLESS_PASS: ci-install-password-1
+        run: windows/scripts/smoke.ps1
+      - name: Uninstall (keeps the data)
+        shell: pwsh
+        run: |
+          $p = Start-Process 'C:\paperless-win\unins000.exe' -PassThru -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES'
+          if (-not $p.WaitForExit(300000)) { $p.Kill($true); throw 'the uninstaller did not finish' }
+          if (Get-Service paperless-win -ErrorAction SilentlyContinue) { throw 'the service is still registered' }
+          if (-not (Test-Path C:\paperless-data\db.sqlite3)) { throw 'the data was not kept' }
+      - name: Logs
+        if: always()
+        shell: pwsh
+        run: |
+          foreach ($p in 'C:\paperless-data\logs\install.log', 'C:\paperless-data\logs\supervisor.log') {
+            if (Test-Path $p) { "::group::$p"; Get-Content $p -Tail 100; '::endgroup::' }
+          }
+  release:
+    name: Publish the release
+    needs: [build, install-test]
+    if: github.ref_type == 'tag' && github.repository_owner != 'paperless-ngx'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout (release notes template)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download the release files
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-files
+          path: dist
+      - name: Write the release notes
+        env:
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          upstream="${VERSION%%-win*}"
+          sed -e "s/@TAG@/${TAG}/g" -e "s/@TAG_FILE@/${VERSION}/g" -e "s/@UPSTREAM@/v${upstream}/g" windows/release-notes.md > notes.md
+      - name: Create the GitHub release on this fork
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" dist/* --title "paperless-win ${TAG#v}" --notes-file notes.md --verify-tag

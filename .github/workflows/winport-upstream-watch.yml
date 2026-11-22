@@ -1,0 +1,45 @@
+name: winport upstream watch
+# Once a week: is there a newer paperless-ngx release than the one this fork is based on? If so, open an
+# issue on THIS fork that points at windows/UPSTREAM-SYNC.md. The upstream repository is only read
+# (the names of its release tags, anonymously); nothing is ever posted there.
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  watch:
+    name: Look for a new upstream release
+    if: github.repository_owner != 'paperless-ngx'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Compare the newest upstream release with this fork
+        id: compare
+        run: python windows/scripts/upstream_watch.py
+      - name: Open an issue on this fork (once per release)
+        if: steps.compare.outputs.newer == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.compare.outputs.tag }}
+        run: |
+          title="Sync upstream ${TAG}"
+          existing=$(gh issue list --state all --search "\"${title}\" in:title" --json title --jq "[.[] | select(.title == \"${title}\")] | length")
+          if [ "$existing" != "0" ]; then
+            echo "An issue '${title}' already exists."
+            exit 0
+          fi
+          body="paperless-ngx published ${TAG}. Merge it into this fork by following [windows/UPSTREAM-SYNC.md](../blob/main/windows/UPSTREAM-SYNC.md): branch \`sync/${TAG}\` from \`main\`, merge the tag, re-apply the \`winport:\` hunks from \`windows/PATCHES.md\`, run the tests on Linux and Windows, then open the pull request **on this fork only**."
+          gh issue create --title "$title" --body "$body"
