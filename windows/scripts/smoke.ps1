@@ -33,6 +33,8 @@ param(
     [switch]$Barcode,
     # Start (and afterwards stop) the stack with paperless-ctl instead of expecting it to run.
     [switch]$StartStack,
+    # Python of the environment to start with -StartStack (default: <repo>\.venv).
+    [string]$Python = '',
     [int]$StartTimeoutSeconds = 120
 )
 
@@ -47,7 +49,7 @@ if ($StartStack) {
         $env:PAPERLESS_URL = "http://localhost:$port"
     }
     $repo = (Resolve-Path "$PSScriptRoot\..\..").Path
-    $py = Join-Path $repo '.venv\Scripts\python.exe'
+    $py = if ($Python) { $Python } else { Join-Path $repo '.venv\Scripts\python.exe' }
     if (-not (Test-Path $py)) { Write-Error "python not found: $py"; exit 2 }
     $env:PYTHONUTF8 = '1'
     $env:PYTHONPATH = Join-Path $repo 'src'

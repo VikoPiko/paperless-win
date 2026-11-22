@@ -117,10 +117,12 @@ jobs:
       - name: Install Python dependencies
         env:
           PYTHON_VERSION: ${{ steps.setup-python.outputs.python-version }}
+        # winport: torch & co. are the optional ai-local extra now; the AI tests need them (P07)
         run: |
           uv sync \
             --python "${PYTHON_VERSION}" \
             --group testing \
+            --extra ai-local \
             --frozen
       - name: List installed Python dependencies
         run: |
@@ -182,11 +184,13 @@ jobs:
       - name: Install Python dependencies
         env:
           PYTHON_VERSION: ${{ steps.setup-python.outputs.python-version }}
+        # winport: torch & co. are the optional ai-local extra now; the AI tests need them (P07)
         run: |
           uv sync \
             --python "${PYTHON_VERSION}" \
             --group testing \
             --group typing \
+            --extra ai-local \
             --frozen
       - name: List installed Python dependencies
         run: |

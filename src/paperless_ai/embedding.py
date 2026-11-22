@@ -16,6 +16,7 @@ from paperless.network import create_pinned_async_httpx_client
 from paperless.network import create_pinned_httpx_client
 from paperless.network import validate_outbound_http_url
 from paperless_ai.client import PLACEHOLDER_API_KEY
+from paperless_win import ai as _winport_ai  # winport: optional local AI (P07)
 
 OCR_LEADER_REGEX = re.compile(r"[._\-\u00b7]{4,}")
 HORIZONTAL_WHITESPACE_REGEX = re.compile(r"[ \t\u00a0]+")
@@ -61,6 +62,7 @@ def get_embedding_model(
                 async_http_client=async_http_client,
             )
         case LLMEmbeddingBackend.HUGGINGFACE:
+            _winport_ai.require_local_embeddings()  # winport: clear error without the ai-local extra (P07)
             from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 
             hf_kwargs = {
