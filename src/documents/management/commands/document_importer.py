@@ -54,6 +54,9 @@ from documents.signals.handlers import check_paths_and_prune_custom_fields
 from documents.signals.handlers import update_filename_and_move_files
 from documents.utils import copy_file_with_basic_stats
 from paperless import version
+from paperless_win.paths import (
+    normalize_manifest_record,
+)  # winport: accept \ in manifests (P04)
 
 if settings.AUDIT_LOG_ENABLED:
     from auditlog.registry import auditlog
@@ -66,7 +69,8 @@ def iter_manifest_records(path: Path) -> Generator[dict, None, None]:
     """Yield records one at a time from a manifest JSON array via ijson."""
     try:
         with path.open("rb") as f:
-            yield from ijson.items(f, "item", use_float=True)
+            for record in ijson.items(f, "item", use_float=True):
+                yield normalize_manifest_record(record)  # winport: accept \ (P04)
     except ijson.JSONError as e:
         raise CommandError(f"Failed to parse manifest file {path}: {e}") from e
 

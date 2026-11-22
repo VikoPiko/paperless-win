@@ -42,12 +42,17 @@ $Pins = @{
         Url  = 'https://nodejs.org/dist/v24.22.3/node-v24.22.3-win-x64.zip'
         Sha  = 'e612af99f626ab415ea225af6bce5c971feb448cb5cae250bb1c3fa50c5f7d9f'
     }
+    # libmagic 5.48 + PCRE2, from conda-forge (BSD licences). The 2018 DLL in python-magic-bin
+    # misses HEIC and Office formats (see windows/tasks/04-external-tools.md).
     LibMagic = @{
-        # python-magic needs libmagic. We take only the DLL + magic database from this wheel
-        # (the wheel's own magic.py is old and cannot handle pathlib.Path; keep python-magic).
-        File = 'python_magic_bin-0.4.14-py2.py3-none-win_amd64.whl'
-        Url  = 'https://files.pythonhosted.org/packages/07/c2/094e3d62b906d952537196603a23aec4bcd7c6126bf80eb14e6f9f4be3a2/python_magic_bin-0.4.14-py2.py3-none-win_amd64.whl'
-        Sha  = '90be6206ad31071a36065a2fc169c5afb5e0355cbe6030e87641c6c62edc2b69'
+        File = 'libmagic-5.48-hf886114_2.conda'
+        Url  = 'https://conda.anaconda.org/conda-forge/win-64/libmagic-5.48-hf886114_2.conda'
+        Sha  = 'ae2d4f4cb525a0d3dd1111b8442d7ed3c1500d2901467522601ee8eaf175e0ee'
+    }
+    Pcre2 = @{
+        File = 'pcre2-10.47-h8466c1e_1.conda'
+        Url  = 'https://conda.anaconda.org/conda-forge/win-64/pcre2-10.47-h8466c1e_1.conda'
+        Sha  = 'd8e9ea26b52a09d880d1e5371830c8dd5b4c099a6db64dbdf8236440744b7499'
     }
     Tesseract = @{
         File = 'tesseract-ocr-w64-setup-5.4.0.20240606.exe'
@@ -176,18 +181,30 @@ Write-Step 'Garnet'
 $GarnetDir = Join-Path $Tools 'garnet'
 Expand-Pinned 'Garnet' $GarnetDir 'net10.0\GarnetServer.exe'
 
-# ---- libmagic (DLL + database only) ------------------------------------------------
-Write-Step 'libmagic (for python-magic)'
+# ---- libmagic 5.48 (+ PCRE2) from conda-forge packages -----------------------------
+# A .conda file is a zip holding a zstd-compressed tar; 7-Zip (unpacked above) reads both.
+function Expand-Conda([string]$Package, [string]$Dest) {
+    New-Item -ItemType Directory -Force $Dest | Out-Null
+    & $SevenZip x -y "-o$Dest" $Package | Out-Null
+    $zst = Get-ChildItem $Dest -Filter 'pkg-*.tar.zst' | Select-Object -First 1
+    & $SevenZip x -y "-o$Dest" $zst.FullName | Out-Null
+    $tar = Get-ChildItem $Dest -Filter '*.tar' | Select-Object -First 1
+    & $SevenZip x -y "-o$Dest" $tar.FullName | Out-Null
+}
+Write-Step 'libmagic 5.48 (for python-magic)'
 $LibMagicDir = Join-Path $Tools 'libmagic'
 if (-not (Test-Tool (Join-Path $LibMagicDir 'libmagic-1.dll'))) {
-    $whl = Get-Pinned 'LibMagic'
     $tmp = Join-Path $Tools 'libmagic-unpack'
     if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
-    [IO.Compression.ZipFile]::ExtractToDirectory($whl, $tmp)   # a .whl is a zip, but Expand-Archive insists on .zip
+    if (Test-Path $LibMagicDir) { Remove-Item $LibMagicDir -Recurse -Force }
+    Expand-Conda (Get-Pinned 'LibMagic') (Join-Path $tmp 'libmagic')
+    Expand-Conda (Get-Pinned 'Pcre2') (Join-Path $tmp 'pcre2')
     New-Item -ItemType Directory -Force $LibMagicDir | Out-Null
     # python-magic looks for libmagic-1.dll on PATH; the database is found through $env:MAGIC
-    Copy-Item (Join-Path $tmp 'magic\libmagic\libmagic.dll') (Join-Path $LibMagicDir 'libmagic-1.dll') -Force
-    Copy-Item (Join-Path $tmp 'magic\libmagic\magic.mgc') (Join-Path $LibMagicDir 'magic.mgc') -Force
+    Copy-Item (Join-Path $tmp 'libmagic\Library\bin\libmagic.dll') (Join-Path $LibMagicDir 'libmagic-1.dll')
+    Copy-Item (Join-Path $tmp 'libmagic\Library\share\misc\magic.mgc') (Join-Path $LibMagicDir 'magic.mgc')
+    # libmagic imports pcre2-posix.dll, which imports pcre2-8.dll
+    foreach ($dll in 'pcre2-posix.dll', 'pcre2-8.dll') { Copy-Item (Join-Path $tmp "pcre2\Library\bin\$dll") $LibMagicDir }
     Remove-Item $tmp -Recurse -Force
 }
 # ---- Node 24 + pnpm (portable, only for building the frontend) ---------------------

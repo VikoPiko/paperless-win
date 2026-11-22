@@ -1,6 +1,6 @@
 r"""Unicode-safe, more accurate ``magic.from_file`` for Windows.
 
-The libmagic DLL we ship (D8) is a 2018 build with two problems:
+The libmagic DLL we ship (D13, 5.48) still has one problem, and an older build had two:
 
 * It opens files through the ANSI C runtime, so a path with characters outside the current
   code page (``Müller Rechnung.pdf``, a profile such as ``C:\Users\Jürgen``) fails with
@@ -12,7 +12,7 @@ The libmagic DLL we ship (D8) is a 2018 build with two problems:
 ``install()`` (called from ``bootstrap.apply()``, Windows only) swaps in a wrapper that
 reads the head of the file in Python and passes the bytes to ``magic.from_buffer`` when
 the path is not pure ASCII (ASCII paths still go through libmagic itself; libmagic only
-looks at the first 1 MiB anyway), then corrects the two gaps above.
+looks at the first 1 MiB anyway), then corrects generic results for those formats.
 """
 
 from __future__ import annotations

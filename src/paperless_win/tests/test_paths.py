@@ -163,3 +163,43 @@ class TestFinalize:
         assert is_legal_ntfs_component(first)
         assert paths.fits_max_path(root, result, reserve=paths.DEFAULT_RESERVE)
         assert rest.startswith("x")
+
+
+class TestManifestRecords:
+    def test_backslashes_become_slashes_on_windows(self, windows: None) -> None:
+        record = {
+            "model": "documents.document",
+            "__exported_file_name__": "2024\\ACME\\a.pdf",
+            "__exported_thumbnail_name__": "t\\a.webp",
+            "__exported_archive_name__": None,
+            "fields": {
+                "filename": "2024\\ACME\\a.pdf",
+                "archive_filename": "x/y.pdf",
+                "title": "a\\b",
+            },
+        }
+        result = paths.normalize_manifest_record(record)
+        assert result["__exported_file_name__"] == "2024/ACME/a.pdf"
+        assert result["__exported_thumbnail_name__"] == "t/a.webp"
+        assert result["__exported_archive_name__"] is None
+        assert result["fields"]["filename"] == "2024/ACME/a.pdf"
+        assert result["fields"]["archive_filename"] == "x/y.pdf"
+        assert result["fields"]["title"] == "a\\b"  # only path fields are touched
+
+    def test_linux_records_are_untouched(self, linux: None) -> None:
+        record = {
+            "__exported_file_name__": "odd\\name.pdf",
+            "fields": {"filename": "odd\\name.pdf"},
+        }
+        assert paths.normalize_manifest_record(record) == {
+            "__exported_file_name__": "odd\\name.pdf",
+            "fields": {"filename": "odd\\name.pdf"},
+        }
+
+    def test_records_without_paths_pass_through(self, windows: None) -> None:
+        assert paths.normalize_manifest_record(
+            {"model": "documents.tag", "fields": {}},
+        ) == {
+            "model": "documents.tag",
+            "fields": {},
+        }

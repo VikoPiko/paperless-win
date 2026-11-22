@@ -63,3 +63,15 @@ Short entries. Newest at the bottom. Format: context → decision → consequenc
 - **Context:** `[tool.uv] environments` lists only Linux/macOS, so `uv sync` fails on Windows; `psycopg[c]` has no Windows wheel and fails building from source.
 - **Decision:** Add a Windows x64 CPython environment to `environments`, and in the `postgres` extra use `psycopg[binary,pool]` on `sys_platform == 'win32'` (keep `psycopg[c]`/`psycopg-c` elsewhere). Re-lock with the same uv version as upstream to limit lock churn. Spike patch: `windows/spike/pyproject-spike.patch`.
 - **Consequences:** One small `pyproject.toml` hunk plus a larger `uv.lock` diff to carry in every upstream sync (P2/P4; register both in `PATCHES.md`).
+
+## D12 — Thin hooks at central points; Windows test skips live in a fork-owned list
+
+- **Context:** Several Windows differences (qpdf/pdfinfo CLIs, upstream tests that assume POSIX) could be handled by editing many upstream call sites and test files, each a future merge conflict, and upstream's own tests mock specific call sites (`documents.consumer.run_subprocess`).
+- **Decision:** (1) Prefer hooking the single central function: `documents.utils.run_subprocess` asks `paperless_win.pdf.shim_subprocess` first (`qpdf --replace-input` runs in-process through pikepdf on Windows); `get_pdf_first_page_size_points` asks `page_size_hook`; the importer's `iter_manifest_records` normalises manifest paths. Call sites and Linux tests stay untouched. (2) Tests that cannot pass on Windows are skipped by a pytest plugin from `windows/skipped_tests.toml` (Windows only, every entry needs a reason and a follow-up), not by editing upstream test files. This is how CLAUDE.md rule 5 is implemented here.
+- **Consequences:** Budget about 2% of the suite in the skip list; review it at every upstream sync. `windows/scripts/run-tests.ps1` enables the plugin; the Windows CI job (P11) must set `PYTEST_ADDOPTS=-p paperless_win.pytest_plugin` and `PYTHONPATH=src`.
+
+## D13 — libmagic 5.48 from conda-forge, replacing the 2018 python-magic-bin DLL (amends D8)
+
+- **Context:** D8 shipped the DLL from `python-magic-bin` 0.4.14 (2018). It reports HEIC/HEIF/AVIF (iPhone photos) and Office Open XML files as `application/octet-stream`, so those would not be consumed.
+- **Decision:** Ship libmagic 5.48 (`libmagic-5.48-hf886114_2.conda`) plus PCRE2 10.47 (`pcre2-10.47-h8466c1e_1.conda`) from conda-forge, both BSD-licensed, SHA256-pinned in `bootstrap-dev.ps1`: `libmagic-1.dll`, `magic.mgc`, `pcre2-posix.dll`, `pcre2-8.dll` in one folder on `PATH`, `MAGIC` set by `bootstrap.apply()` (unchanged from D8). Still use `python-magic`, never `python-magic-bin`. 5.48 recognises HEIC and DOCX natively; the Python sniffing in `paperless_win.magic_compat` stays as a safety net.
+- **Consequences:** The DLLs need the VC++ 14 runtime (P10 must provide it). 5.48 still cannot open non-ASCII paths (ANSI file API), so `magic_compat` keeps the Unicode-safe `from_file` wrapper. Upgrading libmagic later means re-pinning two files.
