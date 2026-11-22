@@ -1,16 +1,19 @@
 name: winport release
 # Tag `vX.Y.Z-win.N` (X.Y.Z = the upstream release this is based on) to build the installer, install it
 # on a fresh runner, run the smoke test against the installed service and publish a GitHub release on
-# this fork. Run it by hand (workflow_dispatch) to try the build and the install test without a release.
+# this fork. Pushing the branch `winport/release-test` (or running it by hand) does the build and the
+# install test with version 0.0.0-ci and never publishes a release: only a tag does.
 on:
   push:
     tags:
       - 'v*-win.*'
+    branches:
+      - 'winport/release-test'
   workflow_dispatch:
     inputs:
       version:
         description: 'Version to build, for example 3.5.1-win.1 (nothing is published)'
-        required: true
+        required: false
         default: '0.0.0-ci'
 permissions:
   contents: read
@@ -30,7 +33,7 @@ jobs:
         id: version
         shell: pwsh
         env:
-          TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version || '0.0.0-ci' }}
         run: |
           $v = $env:TAG -replace '^v', ''
           if ($v -notmatch '^[0-9A-Za-z][0-9A-Za-z.+-]*$') { throw "unusable version '$v'" }
