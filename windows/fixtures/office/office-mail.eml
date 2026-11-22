@@ -1,0 +1,23 @@
+From: Birdwatcher <birds@example.com>
+To: Archive <archive@example.com>
+Subject: A kingfisher report
+Date: Sun, 22 Nov 2026 10:00:00 +0000
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============4174955094876093083=="
+
+--===============4174955094876093083==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+The kingfisher was seen at the lake.
+
+--===============4174955094876093083==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body><h1>Report</h1><p>The <b>kingfisher</b> was seen at the lake.</p>=
+</body></html>
+
+--===============4174955094876093083==--

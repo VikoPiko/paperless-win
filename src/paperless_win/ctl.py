@@ -412,6 +412,8 @@ def do_run(args: argparse.Namespace) -> int:
     supervisor.log(
         f"paperless-win starting (web on port {port}, {cfg.task_workers} worker(s), bind {host})",
     )
+    for warning in stack.office_warnings(cfg):
+        supervisor.log(f"warning: {warning}")
     try:
         return supervisor.run(lambda: stopping["flag"], cfg.stop_timeout)
     finally:
@@ -493,6 +495,15 @@ def collect_findings(cfg: stack.StackConfig, settings) -> list[Finding]:
             "ok" if ok else "fail",
             f"{label} folder {'writable' if ok else 'NOT writable'}: {directory}",
         )
+    if cfg.tika_enabled:
+        warnings = stack.office_warnings(cfg)
+        for text in warnings:
+            add("warn", text)
+        if not warnings:
+            add(
+                "ok",
+                "Office documents and e-mail: Tika, LibreOffice and a browser are available",
+            )
     return found
 
 

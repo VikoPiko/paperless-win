@@ -10,12 +10,13 @@
   Everything except uv, git and Node is unpacked under <repo>\.tools\ (no admin rights,
   nothing system-wide). Downloads are pinned and verified by SHA256.
 
-  Usage:   pwsh windows/scripts/bootstrap-dev.ps1 [-SkipNode] [-Force]
+  Usage:   pwsh windows/scripts/bootstrap-dev.ps1 [-SkipNode] [-WithOffice] [-Force]
   Then:    . .\.tools\env.ps1
 #>
 [CmdletBinding()]
 param(
     [switch]$SkipNode,   # skip Node/pnpm (only needed to build the frontend)
+    [switch]$WithOffice, # also unpack LibreOffice and fetch the Tika server (P8 tests; never part of the installer)
     [switch]$Force       # re-download and reinstall even if the tool is present
 )
 
@@ -165,6 +166,21 @@ if (-not (Test-Tool (Join-Path $LibMagicDir 'libmagic-1.dll'))) {
     # libmagic imports pcre2-posix.dll, which imports pcre2-8.dll
     foreach ($dll in 'pcre2-posix.dll', 'pcre2-8.dll') { Copy-Item (Join-Path $tmp "pcre2\Library\bin\$dll") $LibMagicDir }
     Remove-Item $tmp -Recurse -Force
+}
+# ---- LibreOffice + Tika (only for the Office-document tests; the installer does not bundle them) ----
+if ($WithOffice) {
+    Write-Step 'LibreOffice (unpacked, no admin rights) and the Tika server'
+    $LoDir = Join-Path $Tools 'libreoffice'
+    if (-not (Test-Tool (Join-Path $LoDir 'program\soffice.exe'))) {
+        if (Test-Path $LoDir) { Remove-Item $LoDir -Recurse -Force }
+        $msi = Get-Pinned 'LibreOffice'
+        # an administrative install image: msiexec /a only unpacks the files, it needs no elevation
+        $p = Start-Process msiexec.exe -ArgumentList '/a', "`"$msi`"", '/qn', "TARGETDIR=`"$LoDir`"" -Wait -PassThru
+        if ($p.ExitCode -ne 0 -or -not (Test-Path (Join-Path $LoDir 'program\soffice.exe'))) { throw "unpacking LibreOffice failed (msiexec exit code $($p.ExitCode))" }
+    }
+    $TikaDir = Join-Path $Tools 'tika'
+    New-Item -ItemType Directory -Force $TikaDir | Out-Null
+    Copy-Item (Get-Pinned 'Tika') (Join-Path $TikaDir $Pins['Tika'].File) -Force
 }
 # ---- Node 24 + pnpm (portable, only for building the frontend) ---------------------
 $NodeDir = Join-Path $Tools 'node'

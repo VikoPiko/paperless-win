@@ -73,8 +73,13 @@ not measure by how much).
 
 ## Optional features
 
-**Office documents (Word, Excel...).** Not available out of the box: they need LibreOffice and Apache Tika
-(Java), which are not bundled and which this release does not set up yet.
+**Office documents (Word, Excel...) or e-mail fail.** They need LibreOffice, a Java runtime, the Tika server
+and `PAPERLESS_TIKA_ENABLED=true`: see [configuration](configuration.md#office-documents-and-e-mail-optional).
+`paperless-ctl check` lists what is missing; a failed document says, for example, "LibreOffice was not
+found. Install LibreOffice (...) or set PAPERLESS_WIN_SOFFICE...". "could not convert" with a long wait
+before it means LibreOffice hung and was killed after `PAPERLESS_WIN_OFFICE_TIMEOUT` seconds; the next
+document starts with a fresh LibreOffice profile. The conversion service's own messages are in
+`supervisor.log` (lines marked `[office]`).
 
 **Local AI.** If `PAPERLESS_AI_ENABLED=true` with the local embedding backend and you did not install the
 add-on, `paperless-ctl check` says so (`paperless_win.E001`). Run the installer again and tick the "Local
