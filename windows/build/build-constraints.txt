@@ -1,0 +1,4 @@
+# Build tools for the few dependencies that only ship as source (pure Python, e.g. langdetect).
+# build.ps1 passes this file to pip as PIP_CONSTRAINT so the wheels it builds are reproducible.
+setuptools==84.2.1
+wheel==0.48.0

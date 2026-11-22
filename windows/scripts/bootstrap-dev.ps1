@@ -29,68 +29,10 @@ $Dl = Join-Path $Tools 'dl'
 New-Item -ItemType Directory -Force $Dl | Out-Null
 
 # ---- pinned downloads -------------------------------------------------------------
-$Pins = @{
-    SevenZip = @{
-        # MSI is only unpacked (msiexec /a), never installed: no admin rights needed.
-        File = '7z2606-x64.msi'
-        Url  = 'https://github.com/ip7z/7zip/releases/download/26.06/7z2606-x64.msi'
-        Sha  = '6dc822569e777d9a3ecd5ffcbc22b55600af87e6c5d9810a64e8566cf5a4af9f'
-    }
-    Node = @{
-        # Angular 21 needs Node >= 22.22.3 or >= 24.15; upstream's Dockerfile builds with Node 24.
-        File = 'node-v24.22.3-win-x64.zip'
-        Url  = 'https://nodejs.org/dist/v24.22.3/node-v24.22.3-win-x64.zip'
-        Sha  = 'e612af99f626ab415ea225af6bce5c971feb448cb5cae250bb1c3fa50c5f7d9f'
-    }
-    # libmagic 5.48 + PCRE2, from conda-forge (BSD licences). The 2018 DLL in python-magic-bin
-    # misses HEIC and Office formats (see windows/tasks/04-external-tools.md).
-    LibMagic = @{
-        File = 'libmagic-5.48-hf886114_2.conda'
-        Url  = 'https://conda.anaconda.org/conda-forge/win-64/libmagic-5.48-hf886114_2.conda'
-        Sha  = 'ae2d4f4cb525a0d3dd1111b8442d7ed3c1500d2901467522601ee8eaf175e0ee'
-    }
-    Pcre2 = @{
-        File = 'pcre2-10.47-h8466c1e_1.conda'
-        Url  = 'https://conda.anaconda.org/conda-forge/win-64/pcre2-10.47-h8466c1e_1.conda'
-        Sha  = 'd8e9ea26b52a09d880d1e5371830c8dd5b4c099a6db64dbdf8236440744b7499'
-    }
-    Tesseract = @{
-        File = 'tesseract-ocr-w64-setup-5.4.0.20240606.exe'
-        Url  = 'https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe'
-        Sha  = 'c885fff6998e0608ba4bb8ab51436e1c6775c2bafc2559a19b423e18678b60c9'
-    }
-    TessDeu = @{
-        File = 'deu.traineddata'
-        Url  = 'https://github.com/tesseract-ocr/tessdata_fast/raw/refs/heads/main/deu.traineddata'
-        Sha  = '19d219bbb6672c869d20a9636c6816a81eb9a71796cb93ebe0cb1530e2cdb22d'
-    }
-    Ghostscript = @{
-        File = 'gs10080w64.exe'
-        Url  = 'https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10080/gs10080w64.exe'
-        Sha  = '52a91b8bf09298788d7a57b9206127026c23eacd75405f0a131e26dc381dce50'
-    }
-    Poppler = @{
-        File = 'poppler-26.09.0-0.zip'
-        Url  = 'https://github.com/oschwartz10612/poppler-windows/releases/download/v26.09.0-0/Release-26.09.0-0.zip'
-        Sha  = '7a6f256a0ddf7536182246a5733331bf4677cbcc34f4663774947ad34556c8d0'
-    }
-    Pngquant = @{
-        # pngquant.org serves an unversioned URL; if this hash stops matching, review and re-pin.
-        File = 'pngquant-windows.zip'
-        Url  = 'https://pngquant.org/pngquant-windows.zip'
-        Sha  = 'bd0257aeeccfe446a4cd764927e26f8af6051796f28abed104307284107b120d'
-    }
-    Garnet = @{
-        File = 'garnet-2.2.13-win-x64.zip'
-        Url  = 'https://github.com/microsoft/garnet/releases/download/v2.2.13/win-x64-based-readytorun.zip'
-        Sha  = 'cc8212d7c7a671c490e5c87967fc43025a22215922bdbdad5eccff00915c7b82'
-    }
-    WinSW = @{
-        # v2.12.0 is the last stable release before the experimental 2.13; the exe is not code-signed.
-        File = 'WinSW-x64-2.12.0.exe'
-        Url  = 'https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-x64.exe'
-        Sha  = '05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da'
-    }
+$Manifest = Get-Content (Join-Path $PSScriptRoot '..\build\manifest.json') -Raw | ConvertFrom-Json
+$Pins = @{}
+foreach ($item in $Manifest.inputs) {
+    if ($item.url) { $Pins[$item.id] = @{ File = $item.file; Url = $item.url; Sha = $item.sha256 } }
 }
 
 function Write-Step([string]$Message) { Write-Host "==> $Message" -ForegroundColor Cyan }
@@ -186,6 +128,13 @@ Expand-Pinned 'Pngquant' $PngquantDir 'pngquant.exe'
 Write-Step 'Garnet'
 $GarnetDir = Join-Path $Tools 'garnet'
 Expand-Pinned 'Garnet' $GarnetDir 'net10.0\GarnetServer.exe'
+Write-Step 'Inno Setup (installer compiler)'
+$InnoDir = Join-Path $Tools 'innosetup'
+if (-not (Test-Tool (Join-Path $InnoDir 'ISCC.exe'))) {
+    $inno = Get-Pinned 'InnoSetup'
+    Start-Process $inno -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER', "/DIR=`"$InnoDir`"" -Wait
+    if (-not (Test-Path (Join-Path $InnoDir 'ISCC.exe'))) { throw 'Inno Setup did not install (it should work without admin rights with /CURRENTUSER)' }
+}
 Write-Step 'WinSW (service wrapper)'
 $WinSwDir = Join-Path $Tools 'winsw'
 New-Item -ItemType Directory -Force $WinSwDir | Out-Null
@@ -277,6 +226,7 @@ Check 'ghostscript' { gswin64c --version }
 Check 'pdftoppm' { pdftoppm -v }
 Check 'pngquant' { pngquant --version }
 Check 'garnet' { (Get-Item (Join-Path $dirs.Garnet 'GarnetServer.exe')).VersionInfo.ProductVersion }
+Check 'iscc' { (Get-Item (Join-Path $InnoDir 'ISCC.exe')).VersionInfo.ProductVersion }
 Check 'winsw' { (Get-Item (Join-Path $WinSwDir 'WinSW-x64.exe')).VersionInfo.ProductVersion }
 if (-not $SkipNode) { Check 'node' { node --version }; Check 'pnpm' { pnpm --version } }
 if (-not $ok) { throw 'bootstrap finished with errors' }
