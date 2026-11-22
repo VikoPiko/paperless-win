@@ -32,6 +32,7 @@ _SKIP_DIRS = frozenset(
         "node",
         "node_modules",
         "service",
+        "winsw",  # the service wrapper is not a tool for PATH
         "tessdata",
         "doc",
         "docs",
@@ -62,6 +63,11 @@ def program_data_dir() -> Path | None:
     """``%ProgramData%\\paperless-win`` on Windows, ``None`` elsewhere."""
     if not IS_WINDOWS:
         return None
+    override = os.environ.get("PAPERLESS_WIN_DATA_ROOT")
+    if (
+        override
+    ):  # the service integration test uses its own root, never a real installation's
+        return Path(override)
     base = os.environ.get("PROGRAMDATA") or r"C:\ProgramData"
     return Path(base) / "paperless-win"
 

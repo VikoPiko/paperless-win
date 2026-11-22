@@ -85,6 +85,12 @@ $Pins = @{
         Url  = 'https://github.com/microsoft/garnet/releases/download/v2.2.13/win-x64-based-readytorun.zip'
         Sha  = 'cc8212d7c7a671c490e5c87967fc43025a22215922bdbdad5eccff00915c7b82'
     }
+    WinSW = @{
+        # v2.12.0 is the last stable release before the experimental 2.13; the exe is not code-signed.
+        File = 'WinSW-x64-2.12.0.exe'
+        Url  = 'https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-x64.exe'
+        Sha  = '05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da'
+    }
 }
 
 function Write-Step([string]$Message) { Write-Host "==> $Message" -ForegroundColor Cyan }
@@ -180,6 +186,10 @@ Expand-Pinned 'Pngquant' $PngquantDir 'pngquant.exe'
 Write-Step 'Garnet'
 $GarnetDir = Join-Path $Tools 'garnet'
 Expand-Pinned 'Garnet' $GarnetDir 'net10.0\GarnetServer.exe'
+Write-Step 'WinSW (service wrapper)'
+$WinSwDir = Join-Path $Tools 'winsw'
+New-Item -ItemType Directory -Force $WinSwDir | Out-Null
+Copy-Item (Get-Pinned 'WinSW') (Join-Path $WinSwDir 'WinSW-x64.exe') -Force
 
 # ---- libmagic 5.48 (+ PCRE2) from conda-forge packages -----------------------------
 # A .conda file is a zip holding a zstd-compressed tar; 7-Zip (unpacked above) reads both.
@@ -267,6 +277,7 @@ Check 'ghostscript' { gswin64c --version }
 Check 'pdftoppm' { pdftoppm -v }
 Check 'pngquant' { pngquant --version }
 Check 'garnet' { (Get-Item (Join-Path $dirs.Garnet 'GarnetServer.exe')).VersionInfo.ProductVersion }
+Check 'winsw' { (Get-Item (Join-Path $WinSwDir 'WinSW-x64.exe')).VersionInfo.ProductVersion }
 if (-not $SkipNode) { Check 'node' { node --version }; Check 'pnpm' { pnpm --version } }
 if (-not $ok) { throw 'bootstrap finished with errors' }
 Write-Host "`nDone. In each new shell run:  . .\.tools\env.ps1" -ForegroundColor Green

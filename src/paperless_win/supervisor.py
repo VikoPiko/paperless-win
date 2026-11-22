@@ -377,13 +377,24 @@ class Supervisor:
             if rt.process is None or rt.process.poll() is not None:
                 code = rt.process.poll() if rt.process else None
                 raise SupervisorError(
-                    f"{spec.name} exited during startup (code {code})",
+                    f"{spec.name} exited during startup (code {code}). "
+                    f"See {spec.name}.log in the log folder.",
                 )
             if self.clock() >= deadline:
                 raise SupervisorError(
                     f"{spec.name} was not ready after {spec.ready_timeout:.0f} s",
                 )
             self.sleep(0.2)
+        # Something answered. Make sure it is our child: if the port was taken by another server
+        # the child dies a moment later, and carrying on would hide that.
+        self.sleep(0.5)
+        if rt.process is not None and rt.process.poll() is not None:
+            code = rt.process.poll()
+            raise SupervisorError(
+                f"{spec.name} exited (code {code}) although something answers where it should "
+                "listen: is another server already using that port? Stop it, change the port "
+                "(PAPERLESS_REDIS), or set PAPERLESS_WIN_BROKER=external to use the other server.",
+            )
         self.log(f"{spec.name}: ready")
 
     # -- lifecycle ------------------------------------------------------------------------
