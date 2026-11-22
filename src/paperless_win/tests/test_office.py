@@ -9,8 +9,11 @@ import threading
 import urllib.error
 import urllib.request
 import uuid
+from dataclasses import replace
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 import pikepdf
 import pytest
@@ -209,9 +212,8 @@ def test_html_is_printed_with_the_paper_size_and_margins_of_the_request(
     printed: list[str] = []
 
     def tools(argv: list[str], timeout: float) -> tuple[int, str]:
-        index = Path(
-            next(a for a in argv if a.endswith("index.html")).removeprefix("file:///"),
-        )
+        uri = next(a for a in argv if a.endswith("index.html"))
+        index = Path(url2pathname(urlparse(uri).path))
         printed.append(index.read_text(encoding="utf-8") if index.exists() else "")
         target = next(a for a in argv if a.startswith("--print-to-pdf="))
         Path(target.split("=", 1)[1]).write_bytes(make_pdf())
@@ -431,7 +433,11 @@ def office_config(
     jar.write_text("x")
     monkeypatch.setattr(office, "find_java", lambda _e=None: java)
     monkeypatch.setattr(office, "find_tika_jar", lambda _e=None: jar)
-    return stack.StackConfig.from_settings(Settings(), environ)
+    cfg = stack.StackConfig.from_settings(Settings(), environ)
+    return replace(
+        cfg,
+        garnet="C:/tools/GarnetServer.exe",
+    )  # not found on Linux; build_specs needs it
 
 
 def test_nothing_extra_starts_unless_tika_is_enabled(
@@ -441,7 +447,10 @@ def test_nothing_extra_starts_unless_tika_is_enabled(
     class Off(Settings):
         TIKA_ENABLED = False
 
-    cfg = stack.StackConfig.from_settings(Off(), {})
+    cfg = replace(
+        stack.StackConfig.from_settings(Off(), {}),
+        garnet="C:/tools/GarnetServer.exe",
+    )
     assert not cfg.office
     assert not cfg.tika
     assert [s.name for s in stack.build_specs(cfg, {})].count("office") == 0
