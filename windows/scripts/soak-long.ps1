@@ -32,7 +32,7 @@ $ProgressPreference = 'SilentlyContinue'
 foreach ($name in 'PAPERLESS_URL', 'PAPERLESS_USER', 'PAPERLESS_PASS') {
     if (-not (Get-Item "Env:$name" -ErrorAction SilentlyContinue)) { Write-Error "$name is not set"; exit 2 }
 }
-if (-not (Test-Path "$RunDir\state.json")) { Write-Error "no state.json in $RunDir: is the stack running?"; exit 2 }
+if (-not (Test-Path "$RunDir\state.json")) { Write-Error "no state.json in ${RunDir}: is the stack running?"; exit 2 }
 New-Item -ItemType Directory -Force $WorkDir | Out-Null
 $csv = Join-Path $WorkDir 'soak-long-samples.csv'
 'minutes,name,pid,private_mb,processes' | Set-Content $csv
@@ -52,7 +52,8 @@ function Add-Samples([double]$Minutes) {
     $all = Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId
     $entries = @($state.children | Where-Object { $_.pid } | ForEach-Object { @{ name = $_.name; pid = [int]$_.pid } }) + @{ name = 'supervisor'; pid = [int]$state.supervisor_pid }
     foreach ($e in $entries) {
-        $tree = Get-Tree $e.pid $all
+        # the supervisor's own memory, not its children's (they are listed on their own)
+        $tree = if ($e.name -eq 'supervisor') { @($e.pid) } else { Get-Tree $e.pid $all }
         $procs = @(Get-Process -Id @($tree) -ErrorAction SilentlyContinue)
         if ($procs.Count -eq 0) { continue }
         $mb = ($procs | Measure-Object PrivateMemorySize64 -Sum).Sum / 1MB
@@ -91,7 +92,7 @@ Write-Host ''
 Write-Host ('{0,-11} {1,8} {2,8} {3,8} {4,12}' -f 'process', 'first MB', 'last MB', 'peak MB', 'MB per hour')
 foreach ($group in ($rows | Group-Object name)) {
     $mb = @($group.Group | ForEach-Object { [double]$_.private_mb })
-    $late = @($group.Group | Where-Object { [double]$_.minutes -ge $WarmupMinutes } | ForEach-Object { , @([double]$_.minutes / 60, [double]$_.private_mb) })
+    $late = @($group.Group | Where-Object { [double]$_.minutes -ge $WarmupMinutes } | ForEach-Object { , @(([double]$_.minutes / 60), [double]$_.private_mb) })
     $slope = Get-Slope $late
     $slopeText = if ($null -eq $slope) { 'n/a' } else { '{0:N1}' -f $slope }
     Write-Host ('{0,-11} {1,8:N0} {2,8:N0} {3,8:N0} {4,12}' -f $group.Name, $mb[0], $mb[-1], ($mb | Measure-Object -Maximum).Maximum, $slopeText)
