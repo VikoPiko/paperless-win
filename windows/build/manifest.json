@@ -245,6 +245,30 @@
       "sha256": null,
       "scope": "dev",
       "notes": "Installed through Node's package tooling; the frontend lockfile pins the packages it installs"
+    },
+    {
+      "id": "LibreOffice",
+      "name": "LibreOffice (Windows x64 MSI)",
+      "version": "26.8.3",
+      "license": "MPL-2.0 (with LGPL and other components)",
+      "source": "https://www.libreoffice.org/download/source-code/",
+      "file": "LibreOffice_26.8.3_Win_x86-64.msi",
+      "url": "https://download.documentfoundation.org/libreoffice/stable/26.8.3/win/x86_64/LibreOffice_26.8.3_Win_x86-64.msi",
+      "sha256": "0e6918c273eabbdbbd800ee0dacbbf130a14c13c2e4cec861b06dd59e015bf94",
+      "scope": "optional",
+      "notes": "NOT bundled: converts Office documents to PDF (P8). The user installs it; tests unpack the MSI without admin rights (msiexec /a). SHA256 matches the one published by The Document Foundation"
+    },
+    {
+      "id": "Tika",
+      "name": "Apache Tika server (standard)",
+      "version": "3.3.3",
+      "license": "Apache-2.0",
+      "source": "https://tika.apache.org/",
+      "file": "tika-server-standard-3.3.3.jar",
+      "url": "https://archive.apache.org/dist/tika/3.3.3/tika-server-standard-3.3.3.jar",
+      "sha256": "4559c1fa6ca08390a800036438607e31a6763aba0ea11b928c3fce72315ecf0f",
+      "scope": "optional",
+      "notes": "NOT bundled: text extraction for Office documents and e-mail (P8); needs a Java runtime. Its SHA-512 matches the one published by Apache (5242b1c9d7aa455b...)"
     }
   ]
 }

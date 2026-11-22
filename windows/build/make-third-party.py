@@ -21,6 +21,7 @@ TARGET = ROOT / "windows" / "THIRD_PARTY.md"
 SECTIONS = {
     "bundled": ("BUNDLED", "License"),
     "dev": ("DEV", "License"),
+    "optional": ("OPTIONAL", "License"),
 }
 HEADER = ("Component", "Version", "License", "Source", "Notes")
 

@@ -67,6 +67,10 @@ def apply() -> None:
     if not platform.IS_WINDOWS:
         return
 
+    from paperless_win import office
+
+    office.install_error_details()  # gotenberg_client errors say what the server answered (P8)
+
     dirs = platform.bin_dirs()
     _prepend_path(dirs)
     _append_path(

@@ -58,6 +58,23 @@ This table is generated from `windows/build/manifest.json` by `python windows/bu
 <!-- END DEV -->
 <!-- prettier-ignore-end -->
 
+## Optional, not bundled: Office documents and e-mail (P8)
+
+Office files and e-mail need two programs that are **not part of the installer**: LibreOffice (to make
+the PDF) and Apache Tika with a Java runtime (to read the text). paperless-win finds them when the user
+has installed them (see `windows/docs/configuration.md`); tests and CI download the versions below from
+their pinned addresses. Microsoft Edge (or Chrome), which prints the HTML of an e-mail, and Java are
+used from the computer and are not listed. The glue is `src/paperless_win/office.py`.
+
+<!-- prettier-ignore-start -->
+<!-- BEGIN OPTIONAL -->
+| Component | Version | License | Source | Notes |
+| --- | --- | --- | --- | --- |
+| LibreOffice (Windows x64 MSI) | 26.8.3 | MPL-2.0 (with LGPL and other components) | https://www.libreoffice.org/download/source-code/ | NOT bundled: converts Office documents to PDF (P8). The user installs it; tests unpack the MSI without admin rights (msiexec /a). SHA256 matches the one published by The Document Foundation SHA256 `0e6918c273eabbdbbd800ee0dacbbf130a14c13c2e4cec861b06dd59e015bf94`. |
+| Apache Tika server (standard) | 3.3.3 | Apache-2.0 | https://tika.apache.org/ | NOT bundled: text extraction for Office documents and e-mail (P8); needs a Java runtime. Its SHA-512 matches the one published by Apache (5242b1c9d7aa455b...) SHA256 `4559c1fa6ca08390a800036438607e31a6763aba0ea11b928c3fce72315ecf0f`. |
+<!-- END OPTIONAL -->
+<!-- prettier-ignore-end -->
+
 ## Not bundled (user-installed, optional)
 
 | Component                   | License          | Used for                                         | Notes                                                                                                                                   |

@@ -116,6 +116,11 @@ def _bin_roots() -> list[Path]:
     return roots
 
 
+def tool_roots() -> list[Path]:
+    """The folders helper programs and jars are looked for in, most specific first."""
+    return _bin_roots()
+
+
 def _is_tool_dir(files: list[str]) -> bool:
     lowered = [f.lower() for f in files]
     return any(f.endswith(_EXE_SUFFIXES) for f in lowered) or any(

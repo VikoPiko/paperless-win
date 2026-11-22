@@ -32,6 +32,8 @@ _TRUE = frozenset({"true", "1", "yes", "y", "t", "on"})
 
 # Seconds the broker gets to answer PING, and how long we wait before starting flower
 BROKER_READY_TIMEOUT = 30.0
+TIKA_READY_TIMEOUT = 90.0  # the JVM and Tika's parsers take a while
+OFFICE_READY_TIMEOUT = 30.0
 FLOWER_DELAY = 5.0
 
 
@@ -105,6 +107,14 @@ class StackConfig:
         30.0  # seconds past the task time limit before a worker is killed
     )
     stop_timeout: float = 10.0  # seconds a stopping worker gets to finish its task
+    # Office documents and e-mail (P8): our Gotenberg stand-in and, if there is a jar, a Tika server
+    office: bool = False
+    office_port: int = 3000
+    tika: bool = False
+    tika_port: int = 9998
+    java: str | None = None
+    tika_jar: str | None = None
+    tika_enabled: bool = False
 
     @classmethod
     def from_settings(cls, settings, environ: Mapping[str, str] | None = None):
@@ -126,7 +136,75 @@ class StackConfig:
             garnet=platform.find_binary("GarnetServer"),
             watchdog_grace=float(environ.get("PAPERLESS_WIN_WATCHDOG_GRACE") or 30),
             stop_timeout=float(environ.get("PAPERLESS_WIN_STOP_TIMEOUT") or 10),
+            **office_settings(settings, environ),
         )
+
+
+def office_settings(settings, environ: Mapping[str, str]) -> dict:
+    """What to start for Office documents: only when Tika is on and the user has not named a server."""
+    from paperless_win import (
+        office,  # not at import time: it pulls in the HTTP server and pikepdf
+    )
+
+    enabled = bool(getattr(settings, "TIKA_ENABLED", False)) or truthy(
+        environ.get("PAPERLESS_TIKA_ENABLED"),
+    )
+    own_converter = (
+        enabled
+        and not environ.get("PAPERLESS_TIKA_GOTENBERG_ENDPOINT")
+        and environ.get("PAPERLESS_WIN_OFFICE_CONVERTER", "").lower() != "external"
+    )
+    java, jar = office.find_java(environ), office.find_tika_jar(environ)
+    own_tika = (
+        enabled and not environ.get("PAPERLESS_TIKA_ENDPOINT") and bool(java and jar)
+    )
+    return {
+        "tika_enabled": enabled,
+        "office": own_converter,
+        "office_port": int(
+            environ.get("PAPERLESS_WIN_OFFICE_PORT") or office.DEFAULT_PORT,
+        ),
+        "tika": own_tika,
+        "tika_port": int(environ.get("PAPERLESS_WIN_TIKA_PORT") or 9998),
+        "java": str(java) if java else None,
+        "tika_jar": str(jar) if jar else None,
+    }
+
+
+def office_warnings(
+    cfg: StackConfig,
+    environ: Mapping[str, str] | None = None,
+) -> list[str]:
+    """Why Office documents will not work although Tika is on (shown at start and by ``check``)."""
+    from paperless_win import office
+
+    environ = os.environ if environ is None else environ
+    if not cfg.tika_enabled:
+        return []
+    found: list[str] = []
+    if cfg.office:
+        if office.find_soffice(environ) is None:
+            found.append(
+                f"Office documents: LibreOffice was not found. {office.INSTALL_HINT}",
+            )
+        if office.find_browser(environ) is None:
+            found.append(
+                f"E-mail with HTML: no web browser was found. {office.BROWSER_HINT}",
+            )
+    if not environ.get("PAPERLESS_TIKA_ENDPOINT") and not cfg.tika:
+        if cfg.java is None:
+            found.append(f"Tika: no Java runtime was found. {office.JAVA_HINT}")
+        if cfg.tika_jar is None:
+            found.append(f"Tika: no Tika server was found. {office.TIKA_HINT}")
+    return found
+
+
+def tcp_open(host: str, port: int, timeout: float = 1.0) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
 
 
 def build_specs(
@@ -163,6 +241,36 @@ def build_specs(
             ),
         )
 
+    if cfg.tika and cfg.java and cfg.tika_jar:
+        specs.append(
+            ChildSpec(
+                name="tika",
+                argv=[
+                    cfg.java,
+                    "-jar",
+                    cfg.tika_jar,
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    str(cfg.tika_port),
+                ],
+                cwd=cfg.run_dir,
+                ready=lambda: tcp_open("127.0.0.1", cfg.tika_port),
+                ready_timeout=TIKA_READY_TIMEOUT,
+                stop_phase=PHASE_BROKER,  # after the workers: a running task may still need it
+            ),
+        )
+    if cfg.office:
+        specs.append(
+            ChildSpec(
+                name="office",
+                argv=[cfg.python, "-m", "paperless_win.office"],
+                cwd=cfg.src,
+                ready=lambda: tcp_open("127.0.0.1", cfg.office_port),
+                ready_timeout=OFFICE_READY_TIMEOUT,
+                stop_phase=PHASE_BROKER,
+            ),
+        )
     specs.append(
         ChildSpec(
             name="web",
@@ -251,6 +359,12 @@ def child_environment(cfg: StackConfig) -> dict[str, str]:
     )
     env["PYTHONUNBUFFERED"] = "1"
     env["PAPERLESS_WIN_RUN_DIR"] = str(cfg.run_dir)
+    # our own Tika and Gotenberg stand-in; a server the user configured is left alone
+    if cfg.tika:
+        env["PAPERLESS_TIKA_ENDPOINT"] = f"http://127.0.0.1:{cfg.tika_port}"
+    if cfg.office:
+        env["PAPERLESS_TIKA_GOTENBERG_ENDPOINT"] = f"http://127.0.0.1:{cfg.office_port}"
+        env["PAPERLESS_WIN_OFFICE_PORT"] = str(cfg.office_port)
     return env
 
 

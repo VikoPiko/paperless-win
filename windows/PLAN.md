@@ -61,7 +61,7 @@ P7/P8 can run in parallel with P5/P6 once P4 is done.
 | P5  | `05-consumer-robustness.md` | File-lock retries, stable-file detection, script dispatch, UNC polling | Yes            | ☑ done, CI green                                        |
 | P6  | `06-runtime-supervisor.md`  | `paperless-ctl` (init/run/check), supervisor, solo workers, watchdog   | Yes            | ☑ done (soak passed)                                    |
 | P7  | `07-ai-optional.md`         | `ai-local` extra; base works without torch                             | No             | ☑ done, CI green                                        |
-| P8  | `08-office-docs.md`         | Local LibreOffice converter as Gotenberg alternative                   | Yes            | ☐                                                       |
+| P8  | `08-office-docs.md`         | Local LibreOffice converter as Gotenberg alternative                   | Yes            | ☑ done, CI green (service-account run untested)         |
 | P9  | `09-windows-service.md`     | WinSW service, accounts, ACLs, logs                                    | Yes            | ◐ CI-verified, reboot check pending                     |
 | P10 | `10-packaging-installer.md` | Reproducible build script + Inno Setup installer + upgrade             | Yes            | ◐ CI install test passes, clean-VM pending              |
 | P11 | `11-ci-release.md`          | Windows test job, smoke job, release workflow                          | No (CI)        | ◐ CI + dry run done, release untested                   |

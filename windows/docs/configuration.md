@@ -81,6 +81,53 @@ folder that survives upgrades:
 `paperless-ctl check` tells you whether the languages are found. (Files put directly into the program
 folder's `tessdata` are removed by an upgrade, except for the five languages the installer offers.)
 
+## Office documents and e-mail (optional)
+
+Word, Excel, PowerPoint, OpenDocument files and e-mail (`.eml`) are turned into searchable documents with
+an archive PDF, using programs that are **not part of the installer**. You install them once:
+
+1. **LibreOffice** (makes the PDF): the 64-bit Windows installer from
+   [libreoffice.org](https://www.libreoffice.org/download/). paperless-win finds it in
+   `C:\Program Files\LibreOffice`; for another place set `PAPERLESS_WIN_SOFFICE=D:\Apps\LibreOffice\program\soffice.exe`.
+2. **Java** (runs Tika), for example [Eclipse Temurin](https://adoptium.net/). It is found through `JAVA_HOME`
+   or the `PATH`; or set `PAPERLESS_WIN_JAVA=C:\...\bin\java.exe`.
+3. **The Tika server**: download `tika-server-standard-<version>.jar` from
+   [tika.apache.org](https://tika.apache.org/download.html) (we tested 3.3.3), put it in a folder that
+   upgrades do not touch, for example `C:\ProgramData\paperless-win\tika\`, and set
+   `PAPERLESS_WIN_TIKA_JAR=C:\ProgramData\paperless-win\tika\tika-server-standard-3.3.3.jar`.
+4. Turn it on in `paperless.conf` and restart the service:
+
+   ```
+   PAPERLESS_TIKA_ENABLED=true
+   PAPERLESS_WIN_TIKA_JAR=C:\ProgramData\paperless-win\tika\tika-server-standard-3.3.3.jar
+   ```
+
+paperless-win then starts the Tika server and its own small conversion service next to the other
+processes, and points paperless at both. (The conversion service stands in for Gotenberg, which does not
+exist for Windows: it speaks Gotenberg's protocol and uses LibreOffice for Office files and Microsoft Edge,
+or Chrome, to print the HTML of an e-mail.) `paperless-ctl check` says what is missing, with what to
+install, and so does a failed document in the web interface.
+
+| Setting                                                                                          | Default        | What it does                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PAPERLESS_TIKA_ENABLED`                                                                         | off            | The switch above.                                                                                                                                                                          |
+| `PAPERLESS_WIN_SOFFICE`, `PAPERLESS_WIN_BROWSER`, `PAPERLESS_WIN_JAVA`, `PAPERLESS_WIN_TIKA_JAR` | searched       | Full paths, if the programs are not where paperless-win looks.                                                                                                                             |
+| `PAPERLESS_WIN_OFFICE_CONCURRENCY`                                                               | `1`            | How many documents LibreOffice converts at the same moment. One is the safe value (LibreOffice does not like two copies on one profile); the others wait their turn, about 5 seconds each. |
+| `PAPERLESS_WIN_OFFICE_TIMEOUT`                                                                   | `300`          | Seconds a conversion may take before LibreOffice is killed (the document then fails).                                                                                                      |
+| `PAPERLESS_WIN_OFFICE_PORT`, `PAPERLESS_WIN_TIKA_PORT`                                           | `3000`, `9998` | The local ports of the two services (listening on this computer only).                                                                                                                     |
+| `PAPERLESS_TIKA_ENDPOINT`, `PAPERLESS_TIKA_GOTENBERG_ENDPOINT`                                   | ours           | If you set one of these, paperless-win does not start its own and uses your server instead. `PAPERLESS_WIN_OFFICE_CONVERTER=external` does the same for the conversion service.            |
+
+Good to know:
+
+- A conversion takes about 5 seconds per document, one after the other. The first one after a start is
+  slower while LibreOffice sets itself up (it is done in the background right after the start).
+- Archive PDFs of Office documents are PDF/A when `PAPERLESS_OCR_OUTPUT_TYPE` asks for it. The PDF of an
+  e-mail's HTML part is a plain PDF, not PDF/A.
+- It was tested with the program run by a normal user. Whether LibreOffice and Edge start correctly when
+  the service runs as `NT SERVICE\paperless-win` has not been tested yet: if documents fail with "could
+  not convert" under the service, run paperless-win as a normal user (`paperless-ctl run`) to compare, and
+  tell us.
+
 ## Folders on a network share (NAS)
 
 - **Consume folder on a share.** Windows does not report changes on SMB shares reliably, so paperless-win

@@ -26,17 +26,17 @@ Needs Windows 10/11 (64 bit), about 2 GB of disk space and 1.5 GB of memory whil
 
 ## What is different from the Linux version
 
-| Area                    | In paperless-win                                                                                                                                                       |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Installation, processes | An installer and one Windows service; the container's process manager is replaced by a supervisor (`paperless-ctl`).                                                   |
-| Broker                  | Microsoft Garnet (Redis-compatible), bundled and started by the service. An external Redis is not supported yet.                                                       |
-| Database                | SQLite by default; PostgreSQL if you provide a server. MariaDB/MySQL is not included.                                                                                  |
-| Task workers            | Several single-task worker processes (Windows has no prefork); a worker is restarted after every document, and a task past its time limit is killed by the supervisor. |
-| `unpaper`, `jbig2enc`   | Not included (cleaning options and the smallest PDFs are unavailable unless you supply the programs).                                                                  |
-| Office documents        | Not set up yet: needs LibreOffice and Tika, which are not bundled.                                                                                                     |
-| Local AI embeddings     | Optional add-on (large download). Online and separate AI services work in the base install.                                                                            |
-| Network consume folders | Polled every 10 s; the service must run as a user that can open the share.                                                                                             |
-| Scale                   | One computer.                                                                                                                                                          |
+| Area                    | In paperless-win                                                                                                                                                                                    |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Installation, processes | An installer and one Windows service; the container's process manager is replaced by a supervisor (`paperless-ctl`).                                                                                |
+| Broker                  | Microsoft Garnet (Redis-compatible), bundled and started by the service. An external Redis is not supported yet.                                                                                    |
+| Database                | SQLite by default; PostgreSQL if you provide a server. MariaDB/MySQL is not included.                                                                                                               |
+| Task workers            | Several single-task worker processes (Windows has no prefork); a worker is restarted after every document, and a task past its time limit is killed by the supervisor.                              |
+| `unpaper`, `jbig2enc`   | Not included (cleaning options and the smallest PDFs are unavailable unless you supply the programs).                                                                                               |
+| Office documents        | Word, Excel, PowerPoint, OpenDocument and e-mail work through LibreOffice, Java and a Tika server that you install yourself (optional, not bundled); our own small service stands in for Gotenberg. |
+| Local AI embeddings     | Optional add-on (large download). Online and separate AI services work in the base install.                                                                                                         |
+| Network consume folders | Polled every 10 s; the service must run as a user that can open the share.                                                                                                                          |
+| Scale                   | One computer.                                                                                                                                                                                       |
 
 ## License
 

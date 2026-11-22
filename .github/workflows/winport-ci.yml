@@ -160,3 +160,32 @@ jobs:
       - name: Service integration test
         shell: pwsh
         run: windows/scripts/test-service.ps1
+  windows-office:
+    name: Windows Office documents (LibreOffice, Tika, Edge)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Git line endings
+        run: git config --global core.autocrlf false
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Cache the tools (with LibreOffice and Tika)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tools
+          key: tools-office-${{ runner.os }}-${{ hashFiles('windows/build/manifest.json', 'windows/scripts/bootstrap-dev.ps1') }}
+      - name: Install the tools, LibreOffice and the Tika server
+        shell: pwsh
+        run: windows/scripts/bootstrap-dev.ps1 -SkipNode -WithOffice
+      - name: Install the Python dependencies
+        run: uv sync --frozen --no-dev --extra webserver
+      - name: Office documents integration test
+        shell: pwsh
+        run: windows/scripts/office-integration.ps1
