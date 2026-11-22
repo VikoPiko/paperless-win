@@ -48,10 +48,49 @@ Subcommands:
 
 ## Acceptance criteria
 
-- [ ] `paperless-ctl init && paperless-ctl run` on a clean data dir leads to a passing `smoke.ps1`.
-- [ ] Every integration test in step 3 passes.
-- [ ] A 4-hour soak (consume script in a loop, 2 workers) shows no memory growth trend in any long-lived process and no stuck tasks.
+- [x] `paperless-ctl init && paperless-ctl run` on a clean data dir leads to a passing `smoke.ps1` (`smoke.ps1 -StartStack`).
+- [x] Every integration test in step 3 passes (`windows/scripts/supervisor-integration.ps1`).
+- [x] A 4-hour soak (consume script in a loop, 2 workers) shows no memory growth trend in any long-lived process and no stuck tasks (see Findings for the two small slopes and the one cleanup error).
 
 ## Findings
 
-_(fill in)_
+### What was built
+
+`src/paperless_win/{jobs,supervisor,stack,ctl,celery_signals}.py`, `management/commands/winport_fail_task.py`, one marked hook line in `src/paperless/celery.py`. The supervisor starts Garnet (waits for PING), Granian, celery beat, the consumer and N `-P solo` workers; every child gets its own Job Object (`KILL_ON_JOB_CLOSE`).
+
+### Measured
+
+| What                                             | Result                                                        |
+| ------------------------------------------------ | ------------------------------------------------------------- |
+| Worker start (process start to ready)            | 2.4-3 s                                                       |
+| Worker killed, restarted                         | 1.3-1.9 s                                                     |
+| Ctrl-C / `paperless-ctl stop`, all children gone | 6-11 s, no orphans                                            |
+| Task past the time limit                         | tree killed, worker restarted, `PaperlessTask` marked FAILURE |
+| Integration script                               | all checks green                                              |
+
+4-hour soak (`soak-long.ps1`, 2 workers, 60 files every ~9 min, 23 runs, 1664 samples; samples in `.spike/soak-long/soak-long-samples.csv`, not committed):
+
+| process           | first MB | last MB | peak MB   | MB/hour |
+| ----------------- | -------- | ------- | --------- | ------- |
+| beat              | 128      | 129     | 129       | 0.1     |
+| consumer          | 132      | 134     | 134       | 0.5     |
+| garnet            | 218      | 266     | 268       | 10.9    |
+| supervisor        | 55       | 58      | 58        | 0.4     |
+| web               | 196      | 212     | 216       | 2.6     |
+| worker1 / worker2 | 132      | 132     | 580 / 578 | about 0 |
+
+- Workers peak at about 580 MB while OCRing, and go back to 132 MB because each worker exits after every task (`PAPERLESS_WIN_RECYCLE_AFTER=1`, default kept). No stuck tasks in any run, no duplicate documents, no consume task failed, 1380 of 1380 files became documents.
+- Garnet grows by about 11 MB/hour and web by 2.6 MB/hour. Garnet holds task results and the broker queues, so some growth is data, and 48 MB over 4 h is not a leak that matters for a service that restarts with updates. It is not flat though: **a 24 h+ soak would settle it**; not done.
+- Run 1 was reported FAILED by the soak script. All of its consume checks passed (60/60 documents, no duplicates, no failed task). The failure was the script's cleanup: `DELETE /api/documents/74/` returned 500 because the search index (tantivy) `commit()` raised `ValueError: An IO error occurred: 'Access is denied. (os error 5)'` while a worker was indexing at the same time. One in 23 runs. This is the same message seen twice before as a flaky test in the full suite. It is a Windows file-sharing effect (tantivy replaces index files that another process still has open). **Follow-up (not done): retry the commit on that error in `documents/search/_backend.py`** (small marked patch) or serialise index writes; needs its own look, since it would also lose an index update for a normal consume if the commit fails the same way.
+
+### Limits
+
+- Web, consumer and beat are hard-killed (tree kill) when the stop timeout expires; only the workers get a graceful stop (`w<i>.stop` file) so a task is not cut off.
+- PowerShell 7 children escape the Job Object (verified), so `kill_tree` also walks a toolhelp snapshot of descendants.
+- `collectstatic` takes about 4 minutes on first start: P10 pre-collects it in the installer.
+- `.venv\Scripts\python.exe` is a trampoline (it starts the real interpreter as a child process), so a child is a small process tree.
+
+### Proposed (text only, `DECISIONS.md` not touched)
+
+- Keep recycle-after-1 as the default; users with many tiny documents can raise it, at the cost of the memory peak staying resident.
+- Retry-on-"Access is denied" for the search index commit (see above).

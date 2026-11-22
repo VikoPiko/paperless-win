@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING
 from paperless_win import jobs
 from paperless_win import platform
 from paperless_win import service
+from paperless_win import setup_conf
 from paperless_win import stack
 from paperless_win.supervisor import STATE_FILE
 from paperless_win.supervisor import STOP_REQUEST_FILE
@@ -246,7 +247,7 @@ def do_init(cfg: stack.StackConfig, settings, env: dict[str, str]) -> int:
             return False
 
     def superuser() -> bool:
-        if not os.environ.get("PAPERLESS_ADMIN_USER"):
+        if not env.get("PAPERLESS_ADMIN_USER"):
             say("  PAPERLESS_ADMIN_USER is not set, not creating a superuser")
             return True
         return run_manage(cfg, env, "manage_superuser") == 0
@@ -587,7 +588,36 @@ def do_stop(args: argparse.Namespace) -> int:
 def do_init_command(args: argparse.Namespace) -> int:
     settings = load_settings()
     cfg = stack.StackConfig.from_settings(settings)
-    return do_init(cfg, settings, stack.child_environment(cfg))
+    env = stack.child_environment(cfg)
+    if args.admin_user:
+        env["PAPERLESS_ADMIN_USER"] = args.admin_user
+        if args.admin_password_file:
+            # read (and delete) the file the installer wrote; it never reaches a command line
+            env["PAPERLESS_ADMIN_PASSWORD"] = setup_conf.read_admin_password(
+                Path(args.admin_password_file),
+            )
+    return do_init(cfg, settings, env)
+
+
+def do_setup(args: argparse.Namespace) -> int:
+    """Write paperless.conf (used by the installer). Needs no settings, so it works before init."""
+    data_dir = Path(args.data_dir)
+    conf = Path(args.conf) if args.conf else None
+    if conf is None:
+        root = platform.program_data_dir() or data_dir
+        conf = root / "paperless.conf"
+    values = setup_conf.ConfValues(
+        data_dir=data_dir,
+        consume_dir=Path(args.consume_dir) if args.consume_dir else None,
+        media_dir=Path(args.media_dir) if args.media_dir else None,
+        ocr_languages=args.ocr_languages,
+        port=args.port,
+        bind=args.bind,
+        redis_port=args.redis_port,
+    )
+    outcome = setup_conf.write_conf(conf, values, force=args.force)
+    say(f"{conf}: {outcome}")
+    return EXIT_OK
 
 
 def do_manage(args: argparse.Namespace) -> int:
@@ -757,10 +787,41 @@ def build_parser() -> argparse.ArgumentParser:
         description="Control paperless-win (unofficial Windows port of paperless-ngx).",
     )
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser(
+    init_parser = sub.add_parser(
         "init",
         help="create folders, migrate the database, build indexes",
-    ).set_defaults(func=do_init_command)
+    )
+    init_parser.set_defaults(func=do_init_command)
+    init_parser.add_argument(
+        "--admin-user",
+        help="create this superuser if none exists",
+    )
+    init_parser.add_argument(
+        "--admin-password-file",
+        help="file holding the password of --admin-user; it is deleted after reading",
+    )
+    setup = sub.add_parser("setup", help="write paperless.conf for a new installation")
+    setup.add_argument("--data-dir", required=True)
+    setup.add_argument("--consume-dir")
+    setup.add_argument("--media-dir")
+    setup.add_argument(
+        "--conf",
+        help="where to write it (default: %%ProgramData%%\\paperless-win)",
+    )
+    setup.add_argument("--ocr-languages", default="eng", help="for example eng+deu")
+    setup.add_argument("--port", type=int, default=8000)
+    setup.add_argument(
+        "--bind",
+        default="127.0.0.1",
+        help="0.0.0.0 to allow other computers",
+    )
+    setup.add_argument("--redis-port", type=int, default=6379)
+    setup.add_argument(
+        "--force",
+        action="store_true",
+        help="rewrite it, keeping the secret key",
+    )
+    setup.set_defaults(func=do_setup)
     run = sub.add_parser("run", help="start and supervise all services (foreground)")
     run.add_argument("--init", action="store_true", help="run 'init' first")
     run.set_defaults(func=do_run)

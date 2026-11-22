@@ -33,6 +33,7 @@ _SKIP_DIRS = frozenset(
         "node_modules",
         "service",
         "winsw",  # the service wrapper is not a tool for PATH
+        "innosetup",  # installer compiler (dev only)
         "tessdata",
         "doc",
         "docs",

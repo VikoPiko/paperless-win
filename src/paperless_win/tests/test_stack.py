@@ -341,6 +341,20 @@ def test_parser_knows_every_command() -> None:
     assert parser.parse_args(["run", "--init"]).init is True
 
 
+def test_every_command_can_print_its_help() -> None:
+    """A stray ``%`` in a help text only fails when argparse renders it (Python 3.14 checks earlier)."""
+    import argparse
+
+    def walk(parser: argparse.ArgumentParser) -> None:
+        parser.format_help()
+        for action in parser._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                for sub in action.choices.values():
+                    walk(sub)
+
+    walk(ctl.build_parser())
+
+
 def test_pid_alive_knows_itself_and_a_dead_pid() -> None:
     import os
 

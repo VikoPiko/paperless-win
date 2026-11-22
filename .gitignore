@@ -119,3 +119,6 @@ celerybeat-schedule*
 # winport: dev tools and spike scratch dirs (P01)
 .tools/
 .spike/
+
+# winport: our build scripts live in windows/build/ (upstream ignores every build/ folder) and the build output goes to dist/ (P10)
+!/windows/build/
